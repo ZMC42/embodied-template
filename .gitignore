@@ -1,0 +1,16 @@
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Machine-local links created by scripts/setup_assets.sh.
+/models
+/datasets
+/isaac-sim
+/runs
+
+# Local credentials and overrides.
+.env
+.env.*
+!.env.example

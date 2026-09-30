@@ -1,0 +1,6 @@
+[submodule "third_party/RLinf"]
+	path = third_party/RLinf
+	url = https://github.com/ZMC42/RLinf.git
+[submodule "third_party/Isaac-GR00T"]
+	path = third_party/Isaac-GR00T
+	url = https://github.com/NVIDIA/Isaac-GR00T.git
