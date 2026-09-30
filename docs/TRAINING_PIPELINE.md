@@ -44,7 +44,7 @@ RLinf 已经支持 GR00T N1.7，但当前维护的 N1.7 RL 示例是 LIBERO Spat
 | --- | --- | --- | --- |
 | RLinf | `https://github.com/ZMC42/RLinf.git` | `61ba34e640035f2e4ac4ef3c6078f02d43a00c9a` | 已作为 submodule 固定 |
 | Isaac-GR00T | `https://github.com/NVIDIA/Isaac-GR00T.git` | `n1.7-release`，即 `23ace64f17aa5015259b8609d371eb61a357c776` | 已作为 submodule 固定 |
-| IsaacLab | `https://github.com/RLinf/IsaacLab.git` | `4246b6b4f4a3e74ee20e002ed7536b1c788d39f4` | 待作为 submodule 或等价的 commit-locked source 纳入 |
+| IsaacLab | `https://github.com/RLinf/IsaacLab.git` | `4246b6b4f4a3e74ee20e002ed7536b1c788d39f4` | 已作为 submodule 固定 |
 
 RLinf 使用个人 fork，因为 N1.7 + IsaacLab 的通用集成需要修改框架代码并补充测试。Isaac-GR00T 暂时保持 NVIDIA 官方仓库，仅当官方 SFT 无法通过项目级 wrapper、配置或本地 HF cache 完成时才建立 fork。
 
@@ -308,6 +308,10 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 ### 0. 冻结依赖与运行前检查
 
 先完成 IsaacLab 固定源码接入、HF revision 下载、Cosmos 许可证授权和两套虚拟环境的 lock/manifest。验证 Isaac Sim 5.1、IsaacLab、Torch、CUDA、FlashAttention、Ray 和 driver 的实际版本。
+
+项目入口见 [`docs/PREFLIGHT.md`](PREFLIGHT.md)：`dependencies.lock.json` 是版本
+唯一来源，`download_assets.py` 只按固定 revision 下载，`preflight.py` 负责离线、
+运行时和网络检查，`isaaclab_smoke.py` 负责目标 task 枚举与 headless reset。
 
 完成条件：离线检查脚本能解析全部源码 commit 和资产 revision；IsaacLab 能列出目标 task ID，并成功完成一次 headless reset；网络预检确认 4090 到开发者客户端具备 WebRTC 私网/VPN 或受控公网路径。
 

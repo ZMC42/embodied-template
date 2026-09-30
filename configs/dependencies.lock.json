@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "rlinf": {
+      "url": "https://github.com/ZMC42/RLinf.git",
+      "path": "third_party/RLinf",
+      "commit": "61ba34e640035f2e4ac4ef3c6078f02d43a00c9a"
+    },
+    "isaac_groot": {
+      "url": "https://github.com/NVIDIA/Isaac-GR00T.git",
+      "path": "third_party/Isaac-GR00T",
+      "commit": "23ace64f17aa5015259b8609d371eb61a357c776"
+    },
+    "isaaclab": {
+      "url": "https://github.com/RLinf/IsaacLab.git",
+      "path": "third_party/IsaacLab",
+      "commit": "4246b6b4f4a3e74ee20e002ed7536b1c788d39f4"
+    }
+  },
+  "assets": {
+    "stack_cube_dataset": {
+      "repo_id": "RLinf/IsaacLab-Stack-Cube-Data",
+      "repo_type": "dataset",
+      "revision": "2e27f04b2e31f293fd020164917e4cce09e108d6",
+      "path": "datasets/isaaclab-stack-cube",
+      "license": "artistic-2.0",
+      "license_version": "dataset card at pinned revision",
+      "license_file": "README.md",
+      "gated": false
+    },
+    "groot_n1_7_3b": {
+      "repo_id": "nvidia/GR00T-N1.7-3B",
+      "repo_type": "model",
+      "revision": "2fc962b973bccdd5d8ce4f67cc63b264d6886495",
+      "path": "models/gr00t-n1.7-3b",
+      "license": "NVIDIA License",
+      "license_version": "LICENSE at pinned revision",
+      "license_file": "LICENSE",
+      "gated": false
+    },
+    "cosmos_reason2_2b": {
+      "repo_id": "nvidia/Cosmos-Reason2-2B",
+      "repo_type": "model",
+      "revision": "9ce19a195e423419c349abfc86fd07178b230561",
+      "path": "models/cosmos-reason2-2b",
+      "license": "NVIDIA Open Model License",
+      "license_version": "2025-09-23",
+      "license_terms_sha256": "d4fb382bcb7ef4c775cca5f56b0ca494d4ebd13669067b9bb5f22aa3188d142d",
+      "license_file": null,
+      "gated": true
+    }
+  },
+  "environments": {
+    "sft": {
+      "python": "3.10.*",
+      "required_packages": ["torch", "flash-attn", "transformers", "av", "torchcodec"],
+      "install": "uv sync --frozen --project third_party/Isaac-GR00T",
+      "lock_inputs": {
+        "third_party/Isaac-GR00T/uv.lock": "ad705311ed0a08a74d928cda7e7660315c818c8c3196d24f694f2af480318b48"
+      }
+    },
+    "ppo": {
+      "python": "3.11.14",
+      "required_packages": ["torch", "flash-attn", "transformers", "av", "torchcodec", "ray", "isaacsim", "isaaclab"],
+      "install": "bash third_party/RLinf/requirements/install.sh embodied --env isaaclab",
+      "lock_inputs": {
+        "third_party/RLinf/pyproject.toml": "aa2be0d268cde31b604c546813383b0ed8a06c73b01c9177995200cb9e8f1f2e",
+        "third_party/RLinf/requirements/install.sh": "e98805bd5e8454eb366d72175bc85ac8d4fa47eee83d1f9294e7b866e1059f31",
+        "third_party/IsaacLab/pyproject.toml": "8c8b793fdeef0cf3ef5352bf655f2b4a63399a2a4f33ec1ac8167be8883276bc",
+        "third_party/IsaacLab/VERSION": "a42caf4a54bbbe27aa45b6efbc6356c5e299b19763e728b6cdb7201b02ebbe36"
+      }
+    }
+  },
+  "runtime": {
+    "isaac_sim": "5.1.0",
+    "isaaclab": "2.3.0",
+    "cuda": "12.8",
+    "target_task_id": "Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Rewarded-v0"
+  }
+}

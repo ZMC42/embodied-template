@@ -20,6 +20,7 @@ embodied-template/
 ├── tests/                    Contract and regression tests
 └── third_party/
     ├── Isaac-GR00T/          NVIDIA N1.7 source, pinned submodule
+    ├── IsaacLab/             RLinf IsaacLab fork, pinned submodule
     └── RLinf/                ZMC42 RLinf fork, pinned submodule
 ```
 
@@ -45,3 +46,7 @@ bash scripts/download_stack_cube_dataset.sh
 Read [docs/TRAINING_PIPELINE.md](docs/TRAINING_PIPELINE.md) before installing
 GPU environments. It records the validated combinations, known compatibility
 gaps, and the order in which the pipeline will be implemented.
+
+The commands for frozen downloads, isolated environments, runtime manifests,
+IsaacLab reset, and WebRTC route checks are in
+[docs/PREFLIGHT.md](docs/PREFLIGHT.md).

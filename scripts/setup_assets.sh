@@ -30,7 +30,8 @@ link_asset() {
 
 git -C "$PROJECT_ROOT" submodule update --init \
     third_party/RLinf \
-    third_party/Isaac-GR00T
+    third_party/Isaac-GR00T \
+    third_party/IsaacLab
 
 if ! git -C "${PROJECT_ROOT}/third_party/RLinf" remote get-url upstream >/dev/null 2>&1; then
     git -C "${PROJECT_ROOT}/third_party/RLinf" remote add upstream \
