@@ -6,10 +6,10 @@
 
 该路线技术上可行，但当前属于**有条件可行**，尚不是可直接启动完整 H800 训练的已验证配置。数据 schema、官方 SFT 入口、RLinf 的 N1.7 模型支持和 checkpoint processor 保存机制均已存在；尚未闭合的风险集中在：
 
-- IsaacLab 源码和仿真依赖尚未纳入顶层版本锁定；
+- N1.7 + IsaacLab 的组合运行时仍需验证；N1.5 基线的源码、模型和环境已固定并通过实测；
 - SFT 与 PPO 间的 embodiment、状态表示和 normalization contract 尚未通过运行时测试；
 - N1.7 + IsaacLab 仍是未被上游 e2e 覆盖的新组合；
-- 单张 RTX 4090 能否完成 actor update 尚无实测依据；
+- 单张 RTX 4090 已完成 N1.5 基线的 actor update；N1.7 的显存需求仍需实测；
 - 当前仓库仍是 scaffold，项目级配置、contract test 和目标 e2e 尚未实现。
 
 在“微型 SFT checkpoint → RLinf 离线加载 → IsaacLab rollout → 一次 PPO update → 保存并恢复”完整通过前，不启动完整 SFT 或正式 PPO。
@@ -316,6 +316,8 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 完成条件：离线检查脚本能解析全部源码 commit 和资产 revision；IsaacLab 能列出目标 task ID，并成功完成一次 headless reset；网络预检确认 4090 到开发者客户端具备 WebRTC 私网/VPN 或受控公网路径。
 
 ### 1. 验证 IsaacLab 基线链路
+
+**已完成（2026-10-01）**：单张 RTX 4090 已运行 GR00T N1.5 + IsaacLab，完成 reset、rollout、reward 收集、PPO update、权重同步与 step-1 checkpoint 保存；新进程恢复后继续 update 并保存 step 2。两次运行正常退出，所有记录指标均为有限值。采样峰值显存分别为 23,826 / 23,013 MiB，完整 wall time 为 348.6 / 465.1 s。配置、环境锁、复现命令和产物说明见 [`ISAACLAB_BASELINE.md`](ISAACLAB_BASELINE.md)。本次为短 rollout 工程验证，reward 与 success 为零，不代表任务学习效果。
 
 缩小 GR00T N1.5 + IsaacLab 配置，验证环境 reset、rollout、reward 收集和 actor update。若单张 4090 无法容纳 actor update，先记录峰值显存和失败位置，再在最小多卡/H800 配置完成该基线，不把 OOM 误判为接口失败。
 

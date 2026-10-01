@@ -1,5 +1,9 @@
 # PPO stage
 
-This directory will contain the project-owned Hydra overrides for GR00T N1.7 +
-IsaacLab. Reusable installer, adapter, test, and e2e changes belong in the RLinf
-fork under `third_party/RLinf`.
+`isaaclab_n1_5_smoke.yaml` validates the existing GR00T N1.5 + IsaacLab path on
+one GPU, with one environment, two action chunks and one PPO update. Setup,
+checkpoint resume and measured results are in
+[the baseline report](../../../docs/ISAACLAB_BASELINE.md).
+
+Future GR00T N1.7 + IsaacLab experiment configurations also belong here.
+Reusable adapter and worker changes belong in the RLinf fork.

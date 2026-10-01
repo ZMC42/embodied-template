@@ -5,8 +5,10 @@ embodied training pipeline with NVIDIA Isaac-GR00T, IsaacLab, and RLinf. The
 first reference experiment trains GR00T N1.7 on the IsaacLab Franka stack-cube
 task through SFT followed by PPO.
 
-The repository is currently a scaffold. Its supported baselines must be
-validated before the new N1.7 + IsaacLab path is treated as runnable.
+The GR00T N1.5 + IsaacLab baseline has passed a PPO update, checkpoint save,
+and resume on one RTX 4090. The N1.7 + IsaacLab integration remains to be
+validated. See [the baseline report](docs/ISAACLAB_BASELINE.md) for setup,
+reproduction commands and measured results.
 
 ## Repository layout
 
