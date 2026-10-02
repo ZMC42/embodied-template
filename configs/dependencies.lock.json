@@ -4,7 +4,7 @@
     "rlinf": {
       "url": "https://github.com/ZMC42/RLinf.git",
       "path": "third_party/RLinf",
-      "commit": "0bf6fd743bb3d652fd45784d35b859d6f1250345"
+      "commit": "024713eb4c9a0608a1f77e68f5764955dfc8c005"
     },
     "isaac_groot": {
       "url": "https://github.com/NVIDIA/Isaac-GR00T.git",
@@ -152,13 +152,14 @@
   "integrations": {
     "stack_cube_n1_7": {
       "rlinf_base_commit": "61ba34e640035f2e4ac4ef3c6078f02d43a00c9a",
-      "rlinf_commit": "0bf6fd743bb3d652fd45784d35b859d6f1250345",
+      "rlinf_commit": "024713eb4c9a0608a1f77e68f5764955dfc8c005",
       "rlinf_patch": "configs/patches/rlinf-n1_7-isaaclab.patch",
-      "rlinf_patch_sha256": "5be6f3e7c350028ed32717252b96ff9db8f0d6f1eefd3453b043052f0c016c79",
+      "rlinf_patch_sha256": "06ac8cfe397167766db9e5b884163c5bcd9fa4cc70ad72e406c79add0bb583a0",
       "environment": ".venvs/ppo-isaaclab",
       "requirements_lock": "configs/ppo_isaaclab_n1_7_requirements.lock.txt",
       "bundle": "models/stack-cube-n1.7-sft",
-      "backbone": "models/nvidia/Cosmos-Reason2-2B"
+      "backbone": "models/nvidia/Cosmos-Reason2-2B",
+      "ppo_smoke_config": "experiments/stack_cube/ppo/isaaclab_n1_7_ppo_smoke.yaml"
     }
   }
 }

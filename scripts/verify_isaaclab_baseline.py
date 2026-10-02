@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -13,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import av
+import numpy as np
 import torch
 from omegaconf import OmegaConf
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -24,7 +26,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("run_dir", type=Path)
     parser.add_argument(
-        "--baseline", choices=("isaaclab_n1_5", "n1_7_libero"), default="isaaclab_n1_5"
+        "--baseline",
+        choices=("isaaclab_n1_5", "n1_7_libero", "stack_cube_n1_7"),
+        default="isaaclab_n1_5",
     )
     args = parser.parse_args()
     run_dir = args.run_dir.resolve()
@@ -107,11 +111,16 @@ def main() -> None:
             "gr00t_source_path"
         ]
         packages += ["isaacsim", "isaaclab"]
-    else:
+    elif args.baseline == "n1_7_libero":
         del sources["isaaclab"]
         sources["rlinf"] = lock["baselines"][args.baseline]["rlinf_source_path"]
         packages += ["rlinf-libero", "robosuite", "mujoco", "av"]
         assert cfg.actor.model.embodiment_tag == "libero_sim"
+        assert cfg.actor.model.action_dim == 7
+    else:
+        packages += ["isaacsim", "isaaclab", "av"]
+        assert cfg.actor.model.embodiment_tag == "libero_sim"
+        assert cfg.actor.model.obs_converter_type == "isaaclab_stack_cube"
         assert cfg.actor.model.action_dim == 7
     report = {
         "status": "passed",
@@ -139,9 +148,13 @@ def main() -> None:
             ).strip()
             for name, path in sources.items()
         },
-        "model_revision": lock["baselines"][args.baseline]["model_revision"],
+        "model_revision": (
+            lock["assets"]["groot_n1_7_3b"]["revision"]
+            if args.baseline == "stack_cube_n1_7"
+            else lock["baselines"][args.baseline]["model_revision"]
+        ),
     }
-    if args.baseline == "n1_7_libero":
+    if args.baseline in ("n1_7_libero", "stack_cube_n1_7"):
         from torch.distributed import checkpoint as dcp
 
         assert "CUDA out of memory" not in (run_dir / "console.log").read_text()
@@ -158,12 +171,108 @@ def main() -> None:
         assert optimizer_step == step, optimizer_step
         report["optimizer_step"] = optimizer_step
         report["backbone_revision"] = lock["assets"]["cosmos_reason2_2b"]["revision"]
-        report["libero_assets_revision"] = lock["baselines"][args.baseline][
-            "libero_assets"
-        ]["revision"]
+        if args.baseline == "n1_7_libero":
+            report["libero_assets_revision"] = lock["baselines"][args.baseline][
+                "libero_assets"
+            ]["revision"]
         report["checkpoint_size_bytes"] = sum(
             path.stat().st_size for path in checkpoint_files
         )
+    if args.baseline == "stack_cube_n1_7":
+        trajectories = []
+        for path in sorted((run_dir / "trajectories").rglob("*.pkl")):
+            episode = pickle.loads(path.read_bytes())
+            actions = np.asarray(episode["actions"])
+            assert actions.shape == (cfg.env.train.max_episode_steps, 7)
+            assert np.isfinite(actions).all(), path
+            assert np.isfinite(episode["rewards"]).all(), path
+            states = np.asarray([obs["states"] for obs in episode["observations"]])
+            assert states.shape[-1] == 8 and np.isfinite(states).all(), path
+            trajectories.append(
+                {
+                    "path": str(path.relative_to(run_dir)),
+                    "action_shape": list(actions.shape),
+                    "action_min": actions.min(axis=0).tolist(),
+                    "action_max": actions.max(axis=0).tolist(),
+                    "state_shape": list(states.shape),
+                }
+            )
+        assert trajectories, "Missing recorded actions and observations"
+        report["trajectories"] = trajectories
+        bundle = ROOT / lock["integrations"]["stack_cube_n1_7"]["bundle"]
+        report["bundle_files_sha256"] = {
+            name: hashlib.sha256((bundle / name).read_bytes()).hexdigest()
+            for name in (
+                "MANIFEST.json",
+                "checkpoint/config.json",
+                "checkpoint/model.safetensors.index.json",
+                "checkpoint/processor_config.json",
+                "checkpoint/statistics.json",
+                "checkpoint/embodiment_id.json",
+            )
+        }
+        if cfg.runner.resume_dir:
+            previous_run = Path(cfg.runner.resume_dir).parents[2]
+            previous = json.loads((previous_run / "summary.json").read_text())
+            assert previous["checkpoint_step"] == step - 1
+            assert previous["optimizer_step"] == optimizer_step - 1
+            assert previous["bundle_files_sha256"] == report["bundle_files_sha256"]
+            assert (
+                previous["trajectories"][0]["action_shape"]
+                == trajectories[0]["action_shape"]
+            )
+            previous_episode = pickle.loads(
+                (previous_run / previous["trajectories"][0]["path"]).read_bytes()
+            )
+            np.testing.assert_allclose(
+                episode["observations"][0]["states"],
+                previous_episode["observations"][0]["states"],
+                atol=1e-6,
+                rtol=0,
+            )
+            report["resume_contract"] = {
+                "processor_and_bundle_match": True,
+                "action_shape_match": True,
+                "fixed_seed_initial_state_match": True,
+                "optimizer_step_before": previous["optimizer_step"],
+                "optimizer_step_after": optimizer_step,
+            }
+        model_config = json.loads((bundle / "checkpoint/config.json").read_text())
+        report["training_scope"] = {
+            key: value for key, value in model_config.items() if key.startswith("tune_")
+        }
+        from safetensors import safe_open
+
+        parameter = "action_head.action_decoder.layer2.b"
+        index = json.loads(
+            (bundle / "checkpoint/model.safetensors.index.json").read_text()
+        )
+        with safe_open(
+            bundle / "checkpoint" / index["weight_map"][parameter], framework="pt"
+        ) as weights:
+            original = weights.get_tensor(parameter).to(torch.bfloat16).float()
+        state = {"fsdp_checkpoint": {"model": {parameter: torch.zeros_like(original)}}}
+        dcp.load(state, checkpoint_id=str(checkpoint / "dcp_checkpoint"))
+        updated = state["fsdp_checkpoint"]["model"][parameter]
+        assert torch.isfinite(updated).all()
+        delta = (updated - original).abs()
+        assert delta.max() > 0, "PPO action decoder did not change"
+        report["policy_weight_check"] = {
+            "parameter": parameter,
+            "reference": "SFT weights cast to BF16 as in the model loader",
+            "changed_elements": int(torch.count_nonzero(delta)),
+            "max_absolute_change_from_sft": float(delta.max()),
+        }
+        from torch.utils.tensorboard import SummaryWriter
+
+        with SummaryWriter(str(run_dir / "tensorboard")) as writer:
+            for tag, value in {
+                "resource/gpu_peak_mib": peak,
+                "resource/gpu_capacity_mib": report["gpu_capacity_mib"],
+                "resource/wall_time_seconds": wall_time,
+            }.items():
+                writer.add_scalar(tag, value, step - 1)
+                report["metrics"][tag] = value
     (run_dir / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"PASS: checkpoint step {step}, peak {peak} MiB, {wall_time:.1f} s")
 

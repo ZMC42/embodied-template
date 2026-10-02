@@ -14,7 +14,7 @@ bash scripts/run_stack_cube_rlinf_eval.sh
 
 安装器校验固定源码，在 `.venvs/ppo-isaaclab` 中按锁文件安装 Python 3.11.14、Torch 2.8.0+cu128、Transformers 4.57.3、FlashAttention 2.8.3、Ray 2.58.0、Isaac Sim 5.1.0 和固定 IsaacLab。GPU wheels、Isaac Sim wheels 与普通 wheels 分别使用对应 index，复用本地 wheel cache。源码以 editable 方式接入，直接使用已有 `GR00T_PATH` / `ISAAC_LAB_PATH` 对应的 checkout；N1.7 官方 SFT metadata 固定 Python 3.10，本运行环境使用 `pip --no-deps --ignore-requires-python`，不会覆盖官方 `.venvs/sft-n1.7`。
 
-RLinf 集成固定到 `0bf6fd743bb3d652fd45784d35b859d6f1250345`，保留 Isaac-GR00T `23ace64f` 和 IsaacLab `4246b6b4`。RLinf commit 目前只在本地；`configs/patches/rlinf-n1_7-isaaclab.patch` 已实际从原始 `61ba34e6` replay 并重建出相同 commit hash，便于离线交接。
+第 5 步实测 RLinf 集成 commit 为 `0bf6fd743bb3d652fd45784d35b859d6f1250345`，保留 Isaac-GR00T `23ace64f` 和 IsaacLab `4246b6b4`。第 6 步在其上复用 checkpoint 修复，当前固定版本为 `024713eb`；归档 patch 包含两个提交，已从原始 `61ba34e6` 重建得到相同 hash，方法见 [`STACK_CUBE_PPO_SMOKE.md`](STACK_CUBE_PPO_SMOKE.md)。第 5 步原始运行 manifest 保留当时版本。
 
 实际环境锁在 `runs/stack-cube/integration/environment.lock.txt`，依赖 metadata 检查记录在 `dependency-check.txt`。组合安装后有 72 项 metadata 不兼容，包含 Isaac Sim 的 Torch 2.7 声明与官方 GR00T SFT 依赖；兼容性结论仅覆盖本轮实测的加载与闭环路径，不能视为正式 PPO 环境已验收。
 
@@ -62,7 +62,7 @@ LIVESTREAM=1 PUBLIC_IP=100.110.52.16 \
 
 首次 headless 运行的报告在 Kit shutdown 后写出，因此未执行到写报告语句；该次 `rollout.json` 明确标注由成功运行的逐步 console log 重建，wall time 留空。入口已改为在 Kit shutdown 前写报告。首次缺失正确 EULA 环境变量与 horizon 检查失败的日志独立归档，不计入成功记录。
 
-产物均在 `runs/stack-cube/integration/`，微型 bundle 仍为 `models/stack-cube-n1.7-sft/`。SFT bundle 内源版本记录保持训练时的原值；集成源码和环境版本单独记录。第 6 步的 PPO update、权重同步、训练 checkpoint 保存和恢复尚未启动。
+产物均在 `runs/stack-cube/integration/`，微型 bundle 仍为 `models/stack-cube-n1.7-sft/`。SFT bundle 内源版本记录保持训练时的原值；集成源码和环境版本单独记录。第 6 步已完成 projector-only PPO update、权重同步、训练 checkpoint 保存与新进程恢复，证据见 [`STACK_CUBE_PPO_SMOKE.md`](STACK_CUBE_PPO_SMOKE.md)。
 
 ## 实时画面静止的诊断
 
