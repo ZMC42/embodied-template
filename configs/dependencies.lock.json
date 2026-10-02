@@ -4,7 +4,7 @@
     "rlinf": {
       "url": "https://github.com/ZMC42/RLinf.git",
       "path": "third_party/RLinf",
-      "commit": "61ba34e640035f2e4ac4ef3c6078f02d43a00c9a"
+      "commit": "0bf6fd743bb3d652fd45784d35b859d6f1250345"
     },
     "isaac_groot": {
       "url": "https://github.com/NVIDIA/Isaac-GR00T.git",
@@ -77,12 +77,13 @@
         "isaacsim",
         "isaaclab"
       ],
-      "install": "(cd third_party/RLinf && bash requirements/install.sh embodied --env isaaclab --venv \"../../.venvs/ppo-isaaclab\")",
+      "install": "python scripts/setup_stack_cube_integration.py",
       "lock_inputs": {
         "third_party/RLinf/pyproject.toml": "aa2be0d268cde31b604c546813383b0ed8a06c73b01c9177995200cb9e8f1f2e",
-        "third_party/RLinf/requirements/install.sh": "e98805bd5e8454eb366d72175bc85ac8d4fa47eee83d1f9294e7b866e1059f31",
+        "third_party/RLinf/requirements/install.sh": "f47785dcead7df4e9ef00265c607ec22b897b54842f959dff0dac5d63613b473",
         "third_party/IsaacLab/pyproject.toml": "8c8b793fdeef0cf3ef5352bf655f2b4a63399a2a4f33ec1ac8167be8883276bc",
-        "third_party/IsaacLab/VERSION": "a42caf4a54bbbe27aa45b6efbc6356c5e299b19763e728b6cdb7201b02ebbe36"
+        "third_party/IsaacLab/VERSION": "a42caf4a54bbbe27aa45b6efbc6356c5e299b19763e728b6cdb7201b02ebbe36",
+        "configs/ppo_isaaclab_n1_7_requirements.lock.txt": "6c6dea67ae513b47ed3589667b03217185dfbeecc3cfd1404b86b5690a32c959"
       }
     }
   },
@@ -144,7 +145,20 @@
       "rlinf_source_path": "tmp/RLinf-n1.7-baseline",
       "rlinf_source_commit": "0e60183035192ccd79279018f5e3366ee6346695",
       "rlinf_patch": "configs/patches/rlinf-n1_7-checkpoint.patch",
-      "rlinf_patch_sha256": "5c99a8b6329b1669d0c8a81eb9314d07292eb905b6fd59ed684ee67c79da0971"
+      "rlinf_patch_sha256": "5c99a8b6329b1669d0c8a81eb9314d07292eb905b6fd59ed684ee67c79da0971",
+      "rlinf_base_commit": "61ba34e640035f2e4ac4ef3c6078f02d43a00c9a"
+    }
+  },
+  "integrations": {
+    "stack_cube_n1_7": {
+      "rlinf_base_commit": "61ba34e640035f2e4ac4ef3c6078f02d43a00c9a",
+      "rlinf_commit": "0bf6fd743bb3d652fd45784d35b859d6f1250345",
+      "rlinf_patch": "configs/patches/rlinf-n1_7-isaaclab.patch",
+      "rlinf_patch_sha256": "5be6f3e7c350028ed32717252b96ff9db8f0d6f1eefd3453b043052f0c016c79",
+      "environment": ".venvs/ppo-isaaclab",
+      "requirements_lock": "configs/ppo_isaaclab_n1_7_requirements.lock.txt",
+      "bundle": "models/stack-cube-n1.7-sft",
+      "backbone": "models/nvidia/Cosmos-Reason2-2B"
     }
   }
 }

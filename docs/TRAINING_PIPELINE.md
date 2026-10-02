@@ -6,11 +6,11 @@
 
 该路线技术上可行，但当前属于**有条件可行**，尚不是可直接启动完整 H800 训练的已验证配置。数据 schema、官方 SFT 入口、RLinf 的 N1.7 模型支持和 checkpoint processor 保存机制均已存在；尚未闭合的风险集中在：
 
-- N1.7 + IsaacLab 的组合运行时仍需验证；N1.5 基线的源码、模型和环境已固定并通过实测；
-- SFT 与 PPO 间的 embodiment、状态表示和 normalization contract 尚未通过运行时测试；
-- N1.7 + IsaacLab 仍是未被上游 e2e 覆盖的新组合；
-- 单张 RTX 4090 已完成 N1.5 + IsaacLab 和 N1.7 + LIBERO 的 actor update；N1.7 + IsaacLab 并发显存仍需实测；
-- stack-cube 数据与 processor contract 已通过自动化验证；目标 N1.7 + IsaacLab 的 model/env adapter、项目级 PPO 配置和 e2e 仍需完成。
+- N1.7 + IsaacLab 已完成微型 SFT bundle 交接、禁网加载、闭环和 WebRTC；PPO update/保存/恢复仍属第 6 步；
+- SFT 与 RLinf rollout 间的 embodiment、principal axis-angle、state/action 和 normalization contract 已实测，训练状态恢复仍待验证；
+- N1.7 + IsaacLab 是本项目 fork 验证的组合，已加入 e2e 配置，CI runner 仍需配置固定资产；
+- 单张 RTX 4090 已完成 N1.5 + IsaacLab 和 N1.7 + LIBERO 的 actor update；N1.7 + IsaacLab eval/WebRTC 峰值 12,532 / 13,158 MiB，actor update 显存尚未测量；
+- stack-cube 数据、processor、model/env adapter 和项目级配置已闭合；正式 SFT/PPO 的学习效果与资源 gate 仍需完成。
 
 在“微型 SFT checkpoint → RLinf 离线加载 → IsaacLab rollout → 一次 PPO update → 保存并恢复”完整通过前，不启动完整 SFT 或正式 PPO。
 
@@ -26,13 +26,13 @@
 
 ## 当前支持边界
 
-RLinf 已经支持 GR00T N1.7，但当前维护的 N1.7 RL 示例是 LIBERO Spatial。RLinf 的 IsaacLab 示例目前使用 GR00T N1.5 或 OpenPI pi0.5，安装脚本也会拒绝 `gr00t_n1d7` 与 `isaaclab` 的组合。因此，N1.7 + IsaacLab 是本项目需要实现和验证的组合，而不是复制现有 YAML 即可运行的示例。
+RLinf 上游维护的 N1.7 RL 示例主要是 LIBERO Spatial，IsaacLab 示例主要使用 GR00T N1.5 或 OpenPI pi0.5。本项目 fork 已补齐 `gr00t_n1d7` + `isaaclab` 的安装、模型转换、实验和 e2e 配置，并实测微型 SFT checkpoint 的禁网加载、Ray eval 和 WebRTC 闭环。PPO update 仍需按第 6 步单独验收。
 
 | 组合 | 在本项目中的用途 | 当前上游状态 |
 | --- | --- | --- |
 | GR00T N1.5 + IsaacLab | 验证 IsaacLab、Ray worker 与 PPO 环境链路 | RLinf 已提供文档、配置与 e2e 路径 |
 | GR00T N1.7 + LIBERO Spatial | 验证 N1.7 模型、processor、rollout 与 actor 更新 | RLinf 当前维护的 N1.7 示例 |
-| GR00T N1.7 + IsaacLab | 最终训练目标 | 需要完成集成与验证 |
+| GR00T N1.7 + IsaacLab | 最终训练目标 | 项目 fork 已完成第 5 步，PPO smoke 待验证 |
 
 这里的关键区别是：框架分别支持一个模型和一个环境，并不表示两者的任意组合都已经经过验证。
 
@@ -42,7 +42,7 @@ RLinf 已经支持 GR00T N1.7，但当前维护的 N1.7 RL 示例是 LIBERO Spat
 
 | 依赖 | 仓库 | 固定版本 | 状态 |
 | --- | --- | --- | --- |
-| RLinf | `https://github.com/ZMC42/RLinf.git` | `61ba34e640035f2e4ac4ef3c6078f02d43a00c9a` | 已作为 submodule 固定 |
+| RLinf | `https://github.com/ZMC42/RLinf.git` | `0bf6fd743bb3d652fd45784d35b859d6f1250345` | 已固定本地集成 commit，含可复现归档 patch |
 | Isaac-GR00T | `https://github.com/NVIDIA/Isaac-GR00T.git` | `n1.7-release`，即 `23ace64f17aa5015259b8609d371eb61a357c776` | 已作为 submodule 固定 |
 | IsaacLab | `https://github.com/RLinf/IsaacLab.git` | `4246b6b4f4a3e74ee20e002ed7536b1c788d39f4` | 已作为 submodule 固定 |
 
@@ -344,13 +344,15 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 ### 4. 生成微型 N1.7 SFT checkpoint
 
-**已完成（2026-10-02）**：单张 RTX 4090 完成官方 N1.7 的 1 次 projector-only SFT update，loss=1.5655、gradient norm=1.2691，采样峰值显存 16,295 MiB。已生成 `models/stack-cube-n1.7-sft/` 离线 bundle；全新进程在 `HF_HUB_OFFLINE=1` 和独立禁网 namespace 中完成加载、train-only statistics 检查、实际权重变化检查，以及 held-out episode 6 的全部 292 帧 open-loop 推理，保存 7 维预测—专家对比图和 NPZ。该微型产物仅验收工程链路，gripper 误差仍明显，不代表学会堆叠。入口、官方 CLI 限制、本地 Cosmos 路径、环境修复、资源和逐维指标见 [`STACK_CUBE_SFT_MICRO.md`](STACK_CUBE_SFT_MICRO.md)。第 5 步的 RLinf + IsaacLab 集成尚未开始。
+**已完成（2026-10-02）**：单张 RTX 4090 完成官方 N1.7 的 1 次 projector-only SFT update，loss=1.5655、gradient norm=1.2691，采样峰值显存 16,295 MiB。已生成 `models/stack-cube-n1.7-sft/` 离线 bundle；全新进程在 `HF_HUB_OFFLINE=1` 和独立禁网 namespace 中完成加载、train-only statistics 检查、实际权重变化检查，以及 held-out episode 6 的全部 292 帧 open-loop 推理，保存 7 维预测—专家对比图和 NPZ。该微型产物仅验收工程链路，gripper 误差仍明显，不代表学会堆叠。入口、官方 CLI 限制、本地 Cosmos 路径、环境修复、资源和逐维指标见 [`STACK_CUBE_SFT_MICRO.md`](STACK_CUBE_SFT_MICRO.md)。第 5 步已进入 RLinf + IsaacLab 的集成验证，当前证据见 [`STACK_CUBE_N1_7_INTEGRATION.md`](STACK_CUBE_N1_7_INTEGRATION.md)。
 
 使用 `nvidia/GR00T-N1.7-3B` 和官方训练 pipeline，仅运行足以产生 checkpoint 的 1–10 个 update。固定的 `gr00t/experiment/launch_finetune.py` 无法表达完整 stack-cube processor contract，项目 wrapper 因此直接调用同一官方 `experiment.run()`，显式保留 normalization 和本地 backbone 配置。4090 先验证数据读取、processor、单步前向/反向和保存；如反向 OOM，可在 H800 上完成该微型产物，但仍不得直接进入完整 SFT。
 
 完成条件：生成符合 bundle contract 的产物，并在全新进程、离线模式下加载，完成 held-out 样本的 open-loop inference，同时保存逐动作维度的预测—专家对比图。
 
 ### 5. 集成 N1.7 + IsaacLab 并交接微型 checkpoint
+
+**已完成（2026-10-02）**：RLinf fork `0bf6fd74` 已增加组合安装、N1.7 converter、SFT processor/backbone 加载、实验与 e2e 配置。独立 PPO 环境完成禁网 `(1, 16, 7)` 推理及实际 SFT decoder 权重核对；Ray rollout/env workers 完成 32 步闭环、6 个有限 eval 指标和 34 帧 MP4。macOS 客户端通过 Tailscale 确认看到了最终 SFT closed-loop 的实时方块相对位置变化，50 步作业保存 51 帧双相机 MP4；修复了 Kit timeline pause 导致 Fabric 画面静止的问题。Ray eval/WebRTC 采样峰值显存分别 12,532 / 13,158 MiB，均正常退出且没有 OOM。67 项模型测试通过、1 项跳过；reward/success=0，仅代表工程 gate。完整版本、资源、失败归档、复现与证据见 [`STACK_CUBE_N1_7_INTEGRATION.md`](STACK_CUBE_N1_7_INTEGRATION.md)。第 6 步 PPO update、权重同步、训练 checkpoint 保存与恢复尚未启动。
 
 在 RLinf fork 中完成以下通用改动：
 

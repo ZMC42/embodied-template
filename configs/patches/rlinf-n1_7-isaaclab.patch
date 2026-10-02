@@ -1,0 +1,604 @@
+From 0bf6fd743bb3d652fd45784d35b859d6f1250345 Mon Sep 17 00:00:00 2001
+From: zmc123 <zjz122342@gmail.com>
+Date: Fri, 2 Oct 2026 18:02:15 +0800
+Subject: [PATCH] feat: integrate N1.7 SFT bundles with IsaacLab stack-cube
+
+Signed-off-by: zmc123 <zjz122342@gmail.com>
+---
+ .github/workflows/embodied-e2e-tests.yml      |  36 +++++
+ .../rst_source/examples/embodied/isaaclab.rst |  44 ++++++
+ .../rst_source/examples/embodied/isaaclab.rst |  40 ++++++
+ ...clab_franka_stack_cube_ppo_gr00t_n1d7.yaml | 136 ++++++++++++++++++
+ requirements/install.sh                       |  15 +-
+ .../gr00t/gr00t_n1d7/gr00t_action_model.py    |  61 +++++++-
+ .../models/embodiment/gr00t/simulation_io.py  |  36 ++++-
+ .../embodied/isaaclab_ppo_gr00t_n1d7.yaml     |   6 +
+ tests/unit_tests/test_models.py               |  48 +++++++
+ 9 files changed, 414 insertions(+), 8 deletions(-)
+ create mode 100644 examples/embodiment/config/isaaclab_franka_stack_cube_ppo_gr00t_n1d7.yaml
+ create mode 100644 tests/e2e_tests/embodied/isaaclab_ppo_gr00t_n1d7.yaml
+
+diff --git a/.github/workflows/embodied-e2e-tests.yml b/.github/workflows/embodied-e2e-tests.yml
+index b04eba30..d14bb368 100644
+--- a/.github/workflows/embodied-e2e-tests.yml
++++ b/.github/workflows/embodied-e2e-tests.yml
+@@ -2103,3 +2103,39 @@ jobs:
+         run: |
+           rm -rf .venv
+           uv cache prune
++
++  embodied-gr00t-n1d7-isaaclab-test:
++    if: ${{ vars.STACK_CUBE_SFT_BUNDLE != '' && vars.COSMOS_BACKBONE_PATH != '' }}
++    runs-on: embodied
++    env:
++      STACK_CUBE_SFT_BUNDLE: ${{ vars.STACK_CUBE_SFT_BUNDLE }}
++      COSMOS_BACKBONE_PATH: ${{ vars.COSMOS_BACKBONE_PATH }}
++      GR00T_PATH: ${{ vars.GR00T_N1D7_PATH }}
++      ISAAC_LAB_PATH: ${{ vars.ISAAC_LAB_PATH }}
++      OMNI_KIT_ACCEPT_EULA: "YES"
++      HF_HUB_OFFLINE: "1"
++      HF_DATASETS_OFFLINE: "1"
++    steps:
++      - name: Checkout code
++        uses: actions/checkout@v5
++      - name: Create embodied environment
++        run: |
++          unset UV_DEFAULT_INDEX
++          export UV_PATH=/workspace/dataset/.uv
++          export UV_LINK_MODE=symlink
++          export UV_CACHE_DIR=/workspace/dataset/.uv_cache
++          export UV_PYTHON_INSTALL_DIR=/workspace/dataset/.uv_python
++          bash requirements/install.sh --torch 2.8.0 --python 3.11.14 embodied --model gr00t_n1d7 --env isaaclab
++      - name: Evaluate the micro SFT policy in IsaacLab
++        timeout-minutes: 20
++        run: |
++          export REPO_PATH=$(pwd)
++          source .venv/bin/activate
++          python evaluations/eval_embodied_agent.py \
++            --config-path ../tests/e2e_tests/embodied \
++            --config-name isaaclab_ppo_gr00t_n1d7
++      - name: Cleanup
++        if: always()
++        run: |
++          rm -rf .venv
++          uv cache prune
+diff --git a/docs/source-en/rst_source/examples/embodied/isaaclab.rst b/docs/source-en/rst_source/examples/embodied/isaaclab.rst
+index 109cf276..e623d8d5 100644
+--- a/docs/source-en/rst_source/examples/embodied/isaaclab.rst
++++ b/docs/source-en/rst_source/examples/embodied/isaaclab.rst
+@@ -231,6 +231,50 @@ For standalone evaluation, use the unified :doc:`Evaluation CLI
+    then point ``init_params.id`` in an env config such as
+    ``examples/embodiment/config/env/isaaclab_stack_cube.yaml`` at the new task id.
+ 
++Load an N1.7 SFT Bundle
++----------------------
++
++Use your N1.7 ``LIBERO_PANDA`` SFT bundle to run a short stack-cube evaluation.
++Set the source paths to your pinned checkouts before installing the model and
++simulator combination:
++
++.. code:: bash
++
++   export GR00T_PATH=/path/to/Isaac-GR00T
++   export ISAAC_LAB_PATH=/path/to/IsaacLab
++   bash requirements/install.sh --torch 2.8.0 --python 3.11.14 embodied --model gr00t_n1d7 --env isaaclab
++
++The installer reuses these directories. The validated integration uses
++Isaac-GR00T ``23ace64f`` and IsaacLab ``4246b6b4``, with Python 3.11.14,
++Torch 2.8.0+cu128, Transformers 4.57.3, FlashAttention 2.8.3 and Isaac Sim 5.1.0.
++The project runtime lock and resource measurements are in
++``embodied-template/docs/STACK_CUBE_N1_7_INTEGRATION.md``.
++
++Select the SFT checkpoint and its local Cosmos snapshot:
++
++.. code:: bash
++
++   export REPO_PATH=$PWD
++   export STACK_CUBE_SFT_BUNDLE=/path/to/stack-cube-n1.7-sft
++   export COSMOS_BACKBONE_PATH=/path/to/models/nvidia/Cosmos-Reason2-2B
++   export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1
++   python evaluations/eval_embodied_agent.py \
++     --config-path ../examples/embodiment/config \
++     --config-name isaaclab_franka_stack_cube_ppo_gr00t_n1d7
++
++This configuration resets one environment and executes two 16-step chunks,
++collects rewards and records MP4. The snapshot path must contain
++``nvidia/Cosmos-Reason2`` because the pinned GR00T version selects its backbone
++class using that string. IsaacLab scene assets may still use NVIDIA's asset service;
++verify model loading in an isolated network namespace separately.
++
++The converter selects principal axis-angle for the 8-dimensional state and
++keeps both signed finger positions. Actions retain their relative IK units;
++IsaacLab applies scale 0.5 to the six arm commands, and positive gripper opens.
++The processor's valid horizon is 16 within the model's padded horizon of 40.
++Use ``libero_sim`` with ``isaaclab_stack_cube`` and train-only min/max statistics.
++The micro SFT checkpoint verifies the integration; evaluate task learning separately.
++
+ Visualization and Results
+ -------------------------
+ 
+diff --git a/docs/source-zh/rst_source/examples/embodied/isaaclab.rst b/docs/source-zh/rst_source/examples/embodied/isaaclab.rst
+index 449198db..d1a07cc5 100644
+--- a/docs/source-zh/rst_source/examples/embodied/isaaclab.rst
++++ b/docs/source-zh/rst_source/examples/embodied/isaaclab.rst
+@@ -229,6 +229,46 @@
+    ``examples/embodiment/config/env/isaaclab_stack_cube.yaml`` 等环境配置中，将
+    ``init_params.id`` 指向新的 task id。
+ 
++加载 N1.7 SFT 产物
++-----------------
++
++用 N1.7 的 ``LIBERO_PANDA`` SFT bundle 对 stack-cube 做短闭环评测。
++安装前先指定固定源码目录：
++
++.. code:: bash
++
++   export GR00T_PATH=/path/to/Isaac-GR00T
++   export ISAAC_LAB_PATH=/path/to/IsaacLab
++   bash requirements/install.sh --torch 2.8.0 --python 3.11.14 embodied --model gr00t_n1d7 --env isaaclab
++
++安装器直接复用这两个目录。集成验证使用 Isaac-GR00T ``23ace64f``、
++IsaacLab ``4246b6b4``、Python 3.11.14、Torch 2.8.0+cu128、Transformers 4.57.3、
++FlashAttention 2.8.3 和 Isaac Sim 5.1.0。完整环境锁和资源记录见项目的
++``embodied-template/docs/STACK_CUBE_N1_7_INTEGRATION.md``。
++
++指定 SFT bundle 和本地 Cosmos snapshot 后运行评测：
++
++.. code:: bash
++
++   export REPO_PATH=$PWD
++   export STACK_CUBE_SFT_BUNDLE=/path/to/stack-cube-n1.7-sft
++   export COSMOS_BACKBONE_PATH=/path/to/models/nvidia/Cosmos-Reason2-2B
++   export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1
++   python evaluations/eval_embodied_agent.py \
++     --config-path ../examples/embodiment/config \
++     --config-name isaaclab_franka_stack_cube_ppo_gr00t_n1d7
++
++该配置 reset 单环境、执行两个 16 步 action chunk、收集 reward 并录制 MP4。
++固定 GR00T 版本通过路径字串选择 backbone，snapshot 路径须包含
++``nvidia/Cosmos-Reason2``。IsaacLab 场景资产仍可能访问 NVIDIA 资产服务；
++模型的禁网加载须另在隔离 namespace 中验证。
++
++converter 将 8 维 state 的旋转统一到 principal axis-angle，并保留双指符号。
++六维 arm action 保留 relative IK 命令单位，由 IsaacLab 施加 0.5 scale；
++gripper 正值为打开。processor 的有效 horizon 为 16，模型 padding 容量为 40。
++使用 ``libero_sim`` embodiment、``isaaclab_stack_cube`` converter 和 train-only
++min/max statistics。微型 checkpoint 用于工程验收，任务学习效果须单独评测。
++
+ 可视化与结果
+ ----------------------------------------
+ 
+diff --git a/examples/embodiment/config/isaaclab_franka_stack_cube_ppo_gr00t_n1d7.yaml b/examples/embodiment/config/isaaclab_franka_stack_cube_ppo_gr00t_n1d7.yaml
+new file mode 100644
+index 00000000..ab7e3819
+--- /dev/null
++++ b/examples/embodiment/config/isaaclab_franka_stack_cube_ppo_gr00t_n1d7.yaml
+@@ -0,0 +1,136 @@
++# N1.7 + IsaacLab stack-cube micro-bundle smoke.
++defaults:
++- env/isaaclab_stack_cube@env.train
++- env/isaaclab_stack_cube@env.eval
++- model/gr00t_n1d7@actor.model
++- hybrid_engines/fsdp@actor.fsdp_config
++- weight_syncer/bucket_syncer@weight_syncer
++- override hydra/job_logging: stdout
++- _self_
++hydra:
++  run:
++    dir: .
++  output_subdir: null
++cluster:
++  num_nodes: 1
++  component_placement:
++    env: 0
++    rollout:
++      node_group: rollout
++      placement: 0
++    actor: 0
++  node_groups:
++  - label: rollout
++    node_ranks: all
++    env_configs:
++    - node_ranks: all
++      env_vars:
++      - OMP_NUM_THREADS: 4
++weight_syncer:
++  bucket:
++    bucket_size: 134217728
++    bucket_device: cpu
++runner:
++  task_type: embodied
++  logger:
++    log_path: ../results/isaaclab_n1_7_smoke
++    project_name: rlinf
++    experiment_name: isaaclab_n1_7_smoke
++    logger_backends:
++    - tensorboard
++  max_epochs: 1
++  max_steps: -1
++  only_eval: true
++  val_check_interval: 1
++  save_interval: -1
++  seq_length: 4096
++  max_prompt_length: 30
++  resume_dir: null
++  ckpt_path: null
++algorithm:
++  normalize_advantages: true
++  kl_penalty: kl
++  group_size: 1
++  reward_coef: 1.0
++  reward_type: chunk_level
++  logprob_type: chunk_level
++  entropy_type: chunk_level
++  update_epoch: 1
++  adv_type: gae
++  loss_type: actor_critic
++  loss_agg_func: token-mean
++  kl_beta: 0.0
++  entropy_bonus: 0
++  clip_ratio_high: 0.2
++  clip_ratio_low: 0.2
++  clip_ratio_c: 3.0
++  value_clip: 0.2
++  huber_delta: 10.0
++  gamma: 0.99
++  gae_lambda: 0.95
++  filter_rewards: false
++  rewards_lower_bound: 0.1
++  rewards_upper_bound: 0.9
++env:
++  group_name: EnvGroup
++  train:
++    rollout_epoch: 1
++    total_num_envs: 1
++    max_episode_steps: 32
++    max_steps_per_rollout_epoch: 32
++    use_fixed_reset_state_ids: true
++    video_cfg:
++      save_video: true
++  eval:
++    rollout_epoch: 1
++    total_num_envs: 1
++    max_episode_steps: 32
++    max_steps_per_rollout_epoch: 32
++    auto_reset: true
++    ignore_terminations: true
++    use_fixed_reset_state_ids: true
++    video_cfg:
++      save_video: true
++      info_on_video: true
++      video_base_dir: ${runner.logger.log_path}/video/eval
++rollout:
++  group_name: RolloutGroup
++  backend: huggingface
++  enable_offload: true
++  pipeline_stage_num: 1
++  model: ${actor.model}
++actor:
++  group_name: ActorGroup
++  training_backend: fsdp
++  micro_batch_size: 1
++  global_batch_size: 2
++  seed: 1234
++  enable_offload: true
++  model:
++    model_path: ${oc.env:STACK_CUBE_SFT_BUNDLE}/checkpoint
++    add_value_head: true
++    embodiment_tag: libero_sim
++    obs_converter_type: isaaclab_stack_cube
++    num_action_chunks: 16
++    denoising_steps: 4
++    backbone_model_path: ${oc.env:COSMOS_BACKBONE_PATH}
++  optim:
++    lr: 1.0e-05
++    value_lr: 2.0e-05
++    adam_beta1: 0.9
++    adam_beta2: 0.95
++    adam_eps: 1.0e-08
++    clip_grad: 1.0
++    weight_decay: 0.01
++    critic_warmup_steps: 0
++  fsdp_config:
++    strategy: fsdp
++    gradient_checkpointing: true
++    mixed_precision:
++      param_dtype: ${actor.model.precision}
++      reduce_dtype: ${actor.model.precision}
++      buffer_dtype: ${actor.model.precision}
++reward:
++  use_reward_model: false
++critic:
++  use_critic_model: false
+diff --git a/requirements/install.sh b/requirements/install.sh
+index 963c3a39..438da10e 100755
+--- a/requirements/install.sh
++++ b/requirements/install.sh
+@@ -2623,14 +2623,25 @@ install_gr00t_n1d7_model() {
+ 
+     local gr00t_path
+     gr00t_path=$(clone_or_reuse_repo GR00T_PATH "$VENV_DIR/gr00t" "https://github.com/NVIDIA/Isaac-GR00T.git" -b n1.7-release)
+-    uv pip install -e "$gr00t_path" --no-deps
+-    uv pip install -r "$SCRIPT_DIR/embodied/models/gr00t_n1d7.txt"
++    if [[ "$ENV_NAME" != isaaclab ]]; then
++        uv pip install -e "$gr00t_path" --no-deps
++        uv pip install -r "$SCRIPT_DIR/embodied/models/gr00t_n1d7.txt"
++    fi
+ 
+     case "$ENV_NAME" in
+         maniskill_libero)
+             install_maniskill_libero_env
+             install_flash_attn
+             ;;
++        isaaclab)
++            install_isaaclab_env
++            # Restore the N1.7 runtime after IsaacLab installs its dependencies.
++            uv sync --extra embodied --active "${PLATFORM_UV_SYNC_ARGS[@]}" $NO_INSTALL_RLINF_CMD
++            uv pip install -r "$SCRIPT_DIR/embodied/models/gr00t_n1d7.txt"
++            # Official SFT metadata pins Python 3.10; the Isaac Sim RL runtime uses 3.11.
++            python -m pip install --no-deps --ignore-requires-python -e "$gr00t_path"
++            install_flash_attn
++            ;;
+         *)
+             echo "Environment '$ENV_NAME' is not yet validated for Gr00t N1.7." >&2
+             exit 1
+diff --git a/rlinf/models/embodiment/gr00t/gr00t_n1d7/gr00t_action_model.py b/rlinf/models/embodiment/gr00t/gr00t_n1d7/gr00t_action_model.py
+index 5c919ebd..401961ef 100644
+--- a/rlinf/models/embodiment/gr00t/gr00t_n1d7/gr00t_action_model.py
++++ b/rlinf/models/embodiment/gr00t/gr00t_n1d7/gr00t_action_model.py
+@@ -32,7 +32,7 @@ from transformers.feature_extraction_utils import BatchFeature
+ from rlinf.models.embodiment.base_policy import BasePolicy, ForwardType
+ from rlinf.models.embodiment.gr00t.simulation_io import (
+     ACTION_CONVERSION_N1D7,
+-    OBS_CONVERSION,
++    OBS_CONVERSION_N1D7,
+ )
+ from rlinf.models.embodiment.gr00t.utils import (
+     squeeze_dict_values,
+@@ -773,7 +773,7 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+ 
+         backbone_model_path = kwargs.pop("backbone_model_path", None)
+         if backbone_model_path is not None:
+-            backbone_model_path = str(Path(backbone_model_path).expanduser().resolve())
++            backbone_model_path = str(Path(backbone_model_path).expanduser().absolute())
+             if not Path(backbone_model_path).is_dir():
+                 raise FileNotFoundError(
+                     f"Backbone model path does not exist: {backbone_model_path}"
+@@ -781,6 +781,12 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+             loading_kwargs["local_files_only"] = True
+ 
+         original_model_name = str(config.model_name)
++        direct_local_backbone = backbone_model_path is not None and (
++            "nvidia/Cosmos-Reason2" in backbone_model_path
++            or "Qwen/Qwen3-VL" in backbone_model_path
++        )
++        if direct_local_backbone:
++            config.model_name = backbone_model_path
+ 
+         if backbone_model_path is not None:
+             logger.info(
+@@ -797,7 +803,14 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+         if kwargs:
+             logger.warning("Ignoring unexpected kwargs: %s", sorted(kwargs))
+ 
+-        with redirect_qwen3_backbone_to_local(original_model_name, backbone_model_path):
++        load_context = (
++            nullcontext()
++            if direct_local_backbone
++            else redirect_qwen3_backbone_to_local(
++                original_model_name, backbone_model_path
++            )
++        )
++        with load_context:
+             super().__init__(config, transformers_loading_kwargs=loading_kwargs)
+ 
+             self._modality_config, self._modality_transform = (
+@@ -824,7 +837,7 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+             self.action_head.num_inference_timesteps = denoising_steps
+ 
+         self.obs_converter_type = obs_converter_type
+-        self.obs_convert_fn = OBS_CONVERSION[obs_converter_type]
++        self.obs_convert_fn = OBS_CONVERSION_N1D7[obs_converter_type]
+         self.action_convert_fn = ACTION_CONVERSION_N1D7[obs_converter_type]
+         exp_cfg_path = self.model_path / "experiment_cfg"
+         self._load_metadata(exp_cfg_path)
+@@ -835,6 +848,38 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+         self.action_head.env_action_dim = self.action_dim
+         self.action_head.valid_action_dim = self.valid_action_dim
+ 
++        if obs_converter_type == "isaaclab_stack_cube":
++            processor = self._modality_transform
++            modalities = self._modality_config[self.embodiment_tag.value]
++            keys = ["x", "y", "z", "roll", "pitch", "yaw", "gripper"]
++            assert self.embodiment_tag.value == "libero_sim", (
++                "Use LIBERO_PANDA processor"
++            )
++            assert modalities["video"].modality_keys == ["image", "wrist_image"], (
++                "Camera order mismatch"
++            )
++            assert modalities["state"].modality_keys == keys, "State keys mismatch"
++            assert modalities["action"].modality_keys == keys, "Action keys mismatch"
++            assert (
++                len(modalities["action"].delta_indices) == 16
++                and config.action_horizon == processor.max_action_horizon
++                and config.action_horizon >= 16
++            ), "Action horizon mismatch"
++            assert 1 <= output_action_chunks <= 16, "Execute up to one action horizon"
++            assert self.action_dim == self.valid_action_dim == 7, (
++                "Relative IK action must have 7 dimensions"
++            )
++            state_stats = processor.state_action_processor.statistics["libero_sim"][
++                "state"
++            ]
++            assert sum(len(state_stats[k]["mean"]) for k in keys) == 8, (
++                "State dimension mismatch"
++            )
++            assert (
++                not processor.use_relative_action and not processor.use_percentiles
++            ), "SFT normalization contract mismatch"
++            assert processor.state_dropout_prob == 0, "State dropout must be disabled"
++
+         self._no_split_modules = self.__class__._no_split_modules
+         if hasattr(self, "config"):
+             self.config.no_split_modules = self._no_split_modules
+@@ -896,6 +941,11 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+         with open(processor_dir / "embodiment_id.json", "r") as f:
+             processor_cfg["embodiment_id_mapping"] = json.load(f)
+         if backbone_model_path is not None:
++            if (
++                "nvidia/Cosmos-Reason2" in backbone_model_path
++                or "Qwen/Qwen3-VL" in backbone_model_path
++            ):
++                processor_cfg["model_name"] = backbone_model_path
+             processor_cfg.setdefault("transformers_loading_kwargs", {})
+             processor_cfg["transformers_loading_kwargs"]["local_files_only"] = True
+         modality_transform = Gr00tN1d7Processor(**processor_cfg)
+@@ -1039,7 +1089,8 @@ class GR00T_N1_7_ForRLActionPrediction(Gr00tN1d7, BasePolicy):
+         env_obs = dict(env_obs)
+         # Here we have a source causing tiny inference-training inconsistency,
+         # force convert the state to bf16 then back to float32 to reproduce the info loss in training.
+-        env_obs["states"] = env_obs["states"].to(torch.bfloat16)
++        if self.obs_converter_type != "isaaclab_stack_cube":
++            env_obs["states"] = env_obs["states"].to(torch.bfloat16)
+         env_obs["states"] = env_obs["states"].cpu().float()
+ 
+         observations = self.obs_convert_fn(env_obs)
+diff --git a/rlinf/models/embodiment/gr00t/simulation_io.py b/rlinf/models/embodiment/gr00t/simulation_io.py
+index 352dc27e..0797228e 100644
+--- a/rlinf/models/embodiment/gr00t/simulation_io.py
++++ b/rlinf/models/embodiment/gr00t/simulation_io.py
+@@ -15,6 +15,7 @@
+ import numpy as np
+ import torch
+ import torch.nn.functional as F
++from scipy.spatial.transform import Rotation
+ 
+ 
+ def convert_libero_obs_to_gr00t_format(env_obs):
+@@ -41,6 +42,33 @@ def convert_libero_obs_to_gr00t_format(env_obs):
+     return groot_obs
+ 
+ 
++def convert_isaaclab_stack_cube_obs_to_gr00t_format(env_obs: dict) -> dict:
++    """Convert signed finger state and principal axis-angle to LIBERO_PANDA IO."""
++    states = env_obs["states"].detach().cpu().float().numpy().copy()
++    if states.ndim != 2 or states.shape[1] != 8:
++        raise ValueError("IsaacLab stack-cube requires batched 8-dimensional state")
++    states[:, 3:6] = Rotation.from_rotvec(states[:, 3:6]).as_rotvec()
++    converted = dict(env_obs, states=torch.from_numpy(states))
++    for key in ("main_images", "wrist_images"):
++        image = env_obs[key]
++        if image.shape != (len(states), 256, 256, 3) or image.dtype != torch.uint8:
++            raise ValueError("IsaacLab stack-cube requires 256x256 RGB uint8 cameras")
++        converted[key] = image.detach().cpu()
++    return convert_libero_obs_to_gr00t_format(converted)
++
++
++def convert_to_isaaclab_stack_cube_action_n1d7(
++    action_chunk: dict[str, np.ndarray], chunk_size: int = 16
++) -> np.ndarray:
++    """Keep relative IK commands and binarize gripper (+open/-close)."""
++    keys = ("x", "y", "z", "roll", "pitch", "yaw", "gripper")
++    action = np.concatenate([action_chunk[k][:, :chunk_size] for k in keys], axis=-1)
++    if action.shape[1:] != (chunk_size, 7):
++        raise ValueError("IsaacLab stack-cube requires action shape [B, chunk_size, 7]")
++    action[..., -1] = np.sign(action[..., -1])
++    return action.astype(np.float32)
++
++
+ def convert_maniskill_obs_to_gr00t_format(env_obs):
+     """
+     Convert the observation to the format expected by GR00T models.
+@@ -208,6 +236,12 @@ def convert_to_isaaclab_stack_cube_action(
+     return action_array
+ 
+ 
++OBS_CONVERSION_N1D7 = {
++    "maniskill": convert_maniskill_obs_to_gr00t_format,
++    "libero": convert_libero_obs_to_gr00t_format,
++    "isaaclab_stack_cube": convert_isaaclab_stack_cube_obs_to_gr00t_format,
++}
++
+ OBS_CONVERSION = {
+     "maniskill": convert_maniskill_obs_to_gr00t_format,
+     "libero": convert_libero_obs_to_gr00t_format,
+@@ -229,7 +263,7 @@ ACTION_CONVERSION_N1D6 = {
+ ACTION_CONVERSION_N1D7 = {
+     "libero": convert_to_libero_action_n1d7,
+     "maniskill": convert_to_maniskill_action,
+-    "isaaclab_stack_cube": convert_to_isaaclab_stack_cube_action,
++    "isaaclab_stack_cube": convert_to_isaaclab_stack_cube_action_n1d7,
+ }
+ 
+ 
+diff --git a/tests/e2e_tests/embodied/isaaclab_ppo_gr00t_n1d7.yaml b/tests/e2e_tests/embodied/isaaclab_ppo_gr00t_n1d7.yaml
+new file mode 100644
+index 00000000..a9947342
+--- /dev/null
++++ b/tests/e2e_tests/embodied/isaaclab_ppo_gr00t_n1d7.yaml
+@@ -0,0 +1,6 @@
++defaults:
++- isaaclab_franka_stack_cube_ppo_gr00t_n1d7
++- _self_
++hydra:
++  searchpath:
++  - file://${oc.env:REPO_PATH}/examples/embodiment/config
+diff --git a/tests/unit_tests/test_models.py b/tests/unit_tests/test_models.py
+index fc60e2dc..9ca140e3 100644
+--- a/tests/unit_tests/test_models.py
++++ b/tests/unit_tests/test_models.py
+@@ -1358,3 +1358,51 @@ def test_cosmos3_sglang_response_keeps_every_env_in_input_order():
+     assert actions.shape == (2, 16, 7)
+     assert torch.all(actions[0, :, 6] == -0.5)
+     assert torch.all(actions[1, :, 6] == 0.5)
++
++
++@pytest.mark.parametrize(
++    "angle", [0.0, 1e-7, np.pi - 1e-5, np.pi + 1e-5, 2 * np.pi - 0.01]
++)
++def test_isaaclab_n1d7_principal_state_and_camera_order(angle):
++    from rlinf.models.embodiment.gr00t.simulation_io import OBS_CONVERSION_N1D7
++
++    state = torch.tensor([[0.1, 0.2, 0.3, 0.0, angle, 0.0, 0.04, -0.04]])
++    observation = {
++        "states": state,
++        "main_images": torch.zeros((1, 256, 256, 3), dtype=torch.uint8),
++        "wrist_images": torch.full((1, 256, 256, 3), 255, dtype=torch.uint8),
++        "task_descriptions": ["stack cubes"],
++    }
++    converted = OBS_CONVERSION_N1D7["isaaclab_stack_cube"](observation)
++    expected_angle = angle if angle <= np.pi else angle - 2 * np.pi
++    np.testing.assert_allclose(
++        converted["state.pitch"], [[[expected_angle]]], atol=1e-6
++    )
++    np.testing.assert_array_equal(
++        converted["state.gripper"], state[:, None, 6:].numpy()
++    )
++    assert converted["video.image"].max() == 0
++    assert converted["video.wrist_image"].min() == 255
++    torch.testing.assert_close(observation["states"], state)
++
++
++def test_isaaclab_n1d7_relative_action_and_gripper_sign():
++    from rlinf.envs.action_utils import prepare_actions_for_isaaclab
++    from rlinf.models.embodiment.gr00t.simulation_io import ACTION_CONVERSION_N1D7
++
++    keys = ["x", "y", "z", "roll", "pitch", "yaw", "gripper"]
++    expert = np.arange(21, dtype=np.float32).reshape(1, 3, 7) / 100
++    expert[0, :, -1] = [-0.2, 0, 0.9]
++    decoded = {k: expert[:, :, i : i + 1].copy() for i, k in enumerate(keys)}
++    action = ACTION_CONVERSION_N1D7["isaaclab_stack_cube"](decoded, chunk_size=3)
++    ready = prepare_actions_for_isaaclab(action, "gr00t_n1d7").numpy()
++    np.testing.assert_array_equal(ready[:, :, :6], expert[:, :, :6])
++    np.testing.assert_array_equal(ready[0, :, -1], [-1, 0, 1])
++    np.testing.assert_array_equal(decoded["gripper"], expert[:, :, -1:])
++
++
++def test_isaaclab_n1d7_rejects_wrong_state_dimension():
++    from rlinf.models.embodiment.gr00t.simulation_io import OBS_CONVERSION_N1D7
++
++    with pytest.raises(ValueError, match="8-dimensional"):
++        OBS_CONVERSION_N1D7["isaaclab_stack_cube"]({"states": torch.zeros(1, 7)})
+-- 
+2.34.1
+

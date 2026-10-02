@@ -43,7 +43,7 @@ def main() -> None:
                 "add",
                 "--detach",
                 str(rlinf_path),
-                lock["sources"]["rlinf"]["commit"],
+                baseline["rlinf_base_commit"],
             ],
             check=True,
         )

@@ -57,7 +57,9 @@ def offline() -> int:
     for name, asset in lock["assets"].items():
         asset_path = ASSET_ROOT / asset["path"]
         manifest_path = asset_path / ".asset-manifest.json"
-        manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+        manifest = (
+            json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+        )
         files = manifest.get("files", {})
         ok = manifest.get("revision") == asset["revision"] and all(
             (asset_path / relative).is_file()
@@ -163,7 +165,11 @@ def network(mode: str, client_ip: str, port: int) -> int:
     import socket
 
     address = ipaddress.ip_address(client_ip)
-    if mode == "private" and not address.is_private:
+    if (
+        mode == "private"
+        and not address.is_private
+        and address not in ipaddress.ip_network("100.64.0.0/10")
+    ):
         print("private mode requires a private/VPN client IP", file=sys.stderr)
         return 1
     if mode == "public":
