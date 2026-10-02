@@ -46,7 +46,7 @@ RLinf 自带 `CollectEpisode` 保存实际 observation/action/reward。`verify_i
 
 第 5 步的禁网加载与 WebRTC 证据继续有效。PPO 入口使用 `HF_HUB_OFFLINE=1` 与 `HF_DATASETS_OFFLINE=1` 加载本地模型；Isaac Sim 场景资产访问不纳入模型禁网检查。
 
-5 步零 reward/success 只能验证工程链路，不能评价堆叠能力。正式 SFT、50-episode SFT 闭环评测及 H800 PPO 仍须分别通过第 7–9 步的 gate。
+5 步零 reward/success 只能验证工程链路，不能评价堆叠能力。正式 SFT、50-episode SFT 闭环评测及正式 PPO 仍须分别通过第 7–9 步的 gate。正式 SFT/PPO 暂定在 AutoDL 单张 RTX PRO 6000 96GB 上运行，冻结视觉与语言骨干、训练完整动作头；目标机器的兼容性及该训练范围的资源预算尚未验证，见 [`TRAINING_PIPELINE.md`](TRAINING_PIPELINE.md)。
 
 ## 2026-10-02 实测
 

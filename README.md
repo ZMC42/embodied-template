@@ -5,6 +5,12 @@ embodied training pipeline with NVIDIA Isaac-GR00T, IsaacLab, and RLinf. The
 first reference experiment trains GR00T N1.7 on the IsaacLab Franka stack-cube
 task through SFT followed by PPO.
 
+Formal SFT and PPO are provisionally planned on one RTX PRO 6000 96GB
+(Blackwell) rented from AutoDL with pay-as-you-go billing. Both stages will
+freeze the vision/language backbone and train the full action head; PPO also
+trains the value head. Target-GPU compatibility and resource validation are
+still required; see [the training plan](docs/TRAINING_PIPELINE.md).
+
 The GR00T N1.5 + IsaacLab and N1.7 + LIBERO baselines have passed PPO updates,
 checkpoint saves and resume on one RTX 4090. The N1.7 + IsaacLab integration
 remains to be validated. See the [IsaacLab report](docs/ISAACLAB_BASELINE.md)

@@ -15,7 +15,7 @@ gradient norm=1.2690935，均为有限值。模型共 3,144,016,000 个参数，
 前向/反向及 update 约 1.34 秒，Trainer wall time（含 step-1 保存）
 97.42 秒；官方 run wall time（含模型初始化与最终保存）287.97 秒。
 后续 bundle 复制、SHA256 和离线验收不计入该 wall time。NAS 写入主导本次
-运行时间，这些数值不能作为正式 H800 训练吞吐估计。
+运行时间，这些数值不能作为暂定的单张 RTX PRO 6000 96GB 正式训练吞吐估计。
 
 PyTorch 峰值 allocated/reserved 为 14,785,916,928 / 16,536,043,520 bytes；
 500 ms 采样的 GPU 使用峰值为 16,295 MiB。本次没有反向 OOM。

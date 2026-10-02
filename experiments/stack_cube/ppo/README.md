@@ -1,5 +1,13 @@
 # PPO stage
 
+Formal PPO is provisionally planned on one RTX PRO 6000 96GB (Blackwell)
+rented from AutoDL with pay-as-you-go billing. Actor, rollout, and IsaacLab
+will use GPU 0 on one Ray node, with offload and evaluation scheduling set
+from target-GPU measurements. Freeze the vision/language backbone and train
+the full action head plus value head. The existing projector-only smoke does
+not validate this training scope; see
+[the training plan](../../../docs/TRAINING_PIPELINE.md).
+
 `isaaclab_n1_5_smoke.yaml` validates the existing GR00T N1.5 + IsaacLab path on
 one GPU, with one environment, two action chunks and one PPO update. Setup,
 checkpoint resume and measured results are in

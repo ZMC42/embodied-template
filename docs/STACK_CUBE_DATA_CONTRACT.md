@@ -69,7 +69,7 @@ OMNI_KIT_ACCEPT_EULA=YES \
 
 验证入口会复验原始 hash、重建派生数据、运行测试、生成两条回放，并保存完整环境 lock、官方 uv.lock hash、PyAV 库版本、TorchCodec 的 FFmpeg 动态库链接和库 SHA256。本机 TorchCodec 实际加载 `libtorchcodec_decoder4.so`，使用 Ubuntu 22.04 的 FFmpeg 4.4.2（`libavcodec58`、`libavformat58`、`libavutil56`、`libswscale5`、`libswresample3`，包版本 `7:4.4.2-0ubuntu0.22.04.1`）。需要与记录一致的系统 FFmpeg shared libraries；TorchCodec 使用系统库，PyAV wheel 自带库，两者不能混称。
 
-输入在 NAS 上；本轮验证的是样本随机解码能力，不是正式训练节点的冷缓存吞吐验收。H800 作业前仍须执行本地 staging/NAS 吞吐测试。
+输入在 NAS 上；本轮验证的是样本随机解码能力，不是正式训练节点的冷缓存吞吐验收。正式训练暂定使用 AutoDL 单张 RTX PRO 6000 96GB，作业前仍须执行数据迁移与本地 staging 吞吐测试；若继续访问 NAS，也须测量其吞吐。
 
 ## 可观察产物与边界
 

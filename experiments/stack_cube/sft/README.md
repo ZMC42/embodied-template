@@ -1,5 +1,11 @@
 # SFT stage
 
+Formal SFT is provisionally planned on one RTX PRO 6000 96GB (Blackwell)
+rented from AutoDL with pay-as-you-go billing. Freeze the vision/language
+backbone and train the full action head (projector, DiT, and vlln). Validate
+target-GPU compatibility and resources before the full run; see
+[the training plan](../../../docs/TRAINING_PIPELINE.md).
+
 The data contract is validated in `docs/STACK_CUBE_DATA_CONTRACT.md`.
 `episode_split.json` freezes 117 train / 15 validation / 15 test episodes;
 `data_contract.json` records the explicit state conversion, camera mapping,

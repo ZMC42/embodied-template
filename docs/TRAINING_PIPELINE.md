@@ -4,7 +4,7 @@
 
 ## 可行性结论与执行状态
 
-该路线技术上可行，但当前属于**有条件可行**，尚不是可直接启动完整 H800 训练的已验证配置。数据 schema、官方 SFT 入口、RLinf 的 N1.7 模型支持和 checkpoint processor 保存机制均已存在；尚未闭合的风险集中在：
+该路线技术上可行，但当前属于**有条件可行**，尚不是可直接启动单张 RTX PRO 6000 96GB 正式训练的已验证配置。数据 schema、官方 SFT 入口、RLinf 的 N1.7 模型支持和 checkpoint processor 保存机制均已存在；尚未闭合的风险集中在：
 
 - N1.7 + IsaacLab 已完成微型 SFT bundle 交接、禁网加载、闭环、WebRTC 和 projector-only PPO smoke；完整训练的学习效果仍待验证；
 - SFT 与 RLinf rollout 间的 embodiment、principal axis-angle、state/action 和 normalization contract 已实测，PPO 模型/Adam/scheduler 恢复已通过；
@@ -20,9 +20,28 @@
 - 使用公开数据集 [RLinf/IsaacLab-Stack-Cube-Data](https://huggingface.co/datasets/RLinf/IsaacLab-Stack-Cube-Data)，不采集实机数据。
 - 使用 NVIDIA Isaac-GR00T 官方入口完成 N1.7 SFT，再由 RLinf 加载 SFT 产物并运行 PPO。
 - RTX 4090 是无桌面的远程 headless server，负责开发、数据与 processor 验证、单步前向和最小 rollout；开发阶段必须能通过 Isaac Sim WebRTC/Livestream 实时查看单环境行为。actor update 是资源允许时的目标，不作为单卡必须满足的前提。
-- 完整 SFT 和 PPO 在后续申请的单机 H800 环境中运行；正式申请前必须通过资源预估和最小端到端验证。
+- 完整 SFT 和 PPO 暂定在 AutoDL 按量计费的单机、单张 RTX PRO 6000 96GB（Blackwell）上分阶段运行；正式长跑前必须完成目标机器的兼容性、完整动作头资源预算和最小端到端验证。
+- 正式 SFT/PPO 冻结视觉与语言骨干，训练完整动作头（projector、DiT 与 vlln），PPO 额外训练 value head；现有 projector-only smoke 不代表这一范围已经验证。
 - 数据、SFT 和 PPO 每个阶段都必须产生人可观察的回放或图表；不能只用 loss 和成功率判断机器人行为。
 - `embodied-template` 是可复用的工程模板，`stack_cube` 是第一个完整 reference experiment。
+
+## 正式训练硬件（暂定，2026-10-02）
+
+| 项目 | 当前计划 |
+| --- | --- |
+| 平台与计费 | AutoDL，按量计费 |
+| GPU | 单张 NVIDIA RTX PRO 6000 96GB，Blackwell 架构 |
+| SFT | 单卡训练完整动作头，冻结视觉与语言骨干 |
+| PPO | 单个 Ray node，actor、rollout 和 IsaacLab 使用同一张 GPU；并发与 offload 策略按目标机器实测确定 |
+| 主机资源 | 建议至少 128GB RAM、16–32 vCPU、约 300GB 本地 NVMe 可用空间；最终容量按依赖、数据与 checkpoint 保留预算确定 |
+| 价格参考 | 2026-10-02 AutoDL 官网展示价约 ¥7.35/卡时；实际价格、库存与磁盘费用以租用页面为准 |
+| 验证状态 | 尚未在目标 GPU 上验证完整动作头 SFT/PPO；通过下述资源 gate 后才启动正式长跑 |
+
+选择大显存 RTX 是为了让训练和双相机仿真可以使用同一张卡。IsaacLab 的 front/wrist 相机即使在 headless 模式也需要 RTX 渲染。[Isaac Sim 5.1 官方要求](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html)不支持无 RT Core 的 GPU（如 A100、H100）；H800 同样没有 RT Core，因此不再作为本项目完整流水线的默认硬件。
+
+正式 SFT 设置 `tune_llm=false`、`tune_visual=false`、`tune_projector=true`、`tune_diffusion_model=true`、`tune_vlln=true`；PPO 加载这一训练范围的 SFT checkpoint 并启用 value head。本地 checkpoint 的完整动作头约有 16.21 亿参数，现有 smoke 仅训练约 3.27 亿 projector 参数，不能直接外推正式训练的显存和吞吐。
+
+目标机器先分别验证官方 SFT 与 PPO 环境的 FlashAttention 前向/反向 kernel，以及 Isaac Sim 5.1 双相机 headless 渲染；核实 Blackwell 支持和实际驱动版本，Linux 驱动按 Isaac Sim 5.1 官方要求至少为 580.65.06。随后用完整动作头执行短 SFT 与 PPO，覆盖 update、权重同步、checkpoint 保存、全新进程恢复和评测视频，测量完整作业峰值显存及主机内存。峰值显存目标仍为实际可用容量的 90% 以内；最终 batch、环境数量、action chunk、denoising steps 与 offload 设置由此确定。
 
 ## 当前支持边界
 
@@ -277,10 +296,10 @@ RLinf 配置使用 `logger_backends: [tensorboard]`，事件文件位于 `<log_p
 tensorboard --logdir runs/stack-cube --host 127.0.0.1 --port 6006
 ```
 
-如果日志就在本机，直接打开 `http://127.0.0.1:6006`。如果命令运行在远程 H800 机器上，再从本地建立 SSH tunnel，不直接把 TensorBoard 端口暴露到公网：
+如果日志就在本机，直接打开 `http://127.0.0.1:6006`。如果命令运行在远程 AutoDL 训练机器上，再从本地建立 SSH tunnel，不直接把 TensorBoard 端口暴露到公网；使用实例提供的 SSH 地址与端口：
 
 ```bash
-ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
+ssh -p <ssh-port> -L 6006:127.0.0.1:6006 <user>@<training-host>
 ```
 
 新手优先关注：
@@ -322,7 +341,7 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 **已完成（2026-10-01）**：单张 RTX 4090 已运行 GR00T N1.5 + IsaacLab，完成 reset、rollout、reward 收集、PPO update、权重同步与 step-1 checkpoint 保存；新进程恢复后继续 update 并保存 step 2。两次运行正常退出，所有记录指标均为有限值。采样峰值显存分别为 23,826 / 23,013 MiB，完整 wall time 为 348.6 / 465.1 s。配置、环境锁、复现命令和产物说明见 [`ISAACLAB_BASELINE.md`](ISAACLAB_BASELINE.md)。本次为短 rollout 工程验证，reward 与 success 为零，不代表任务学习效果。
 
-缩小 GR00T N1.5 + IsaacLab 配置，验证环境 reset、rollout、reward 收集和 actor update。若单张 4090 无法容纳 actor update，先记录峰值显存和失败位置，再在最小多卡/H800 配置完成该基线，不把 OOM 误判为接口失败。
+缩小 GR00T N1.5 + IsaacLab 配置，验证环境 reset、rollout、reward 收集和 actor update。若单张 4090 无法容纳 actor update，先记录峰值显存和失败位置，再在暂定的单张 RTX PRO 6000 96GB 上完成该基线，不把 OOM 误判为接口失败。
 
 完成条件：至少一次完整 update，无 shape、device、NaN 或 worker 生命周期错误，并能保存和恢复 checkpoint。
 
@@ -346,7 +365,7 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 **已完成（2026-10-02）**：单张 RTX 4090 完成官方 N1.7 的 1 次 projector-only SFT update，loss=1.5655、gradient norm=1.2691，采样峰值显存 16,295 MiB。已生成 `models/stack-cube-n1.7-sft/` 离线 bundle；全新进程在 `HF_HUB_OFFLINE=1` 和独立禁网 namespace 中完成加载、train-only statistics 检查、实际权重变化检查，以及 held-out episode 6 的全部 292 帧 open-loop 推理，保存 7 维预测—专家对比图和 NPZ。该微型产物仅验收工程链路，gripper 误差仍明显，不代表学会堆叠。入口、官方 CLI 限制、本地 Cosmos 路径、环境修复、资源和逐维指标见 [`STACK_CUBE_SFT_MICRO.md`](STACK_CUBE_SFT_MICRO.md)。第 5 步已进入 RLinf + IsaacLab 的集成验证，当前证据见 [`STACK_CUBE_N1_7_INTEGRATION.md`](STACK_CUBE_N1_7_INTEGRATION.md)。
 
-使用 `nvidia/GR00T-N1.7-3B` 和官方训练 pipeline，仅运行足以产生 checkpoint 的 1–10 个 update。固定的 `gr00t/experiment/launch_finetune.py` 无法表达完整 stack-cube processor contract，项目 wrapper 因此直接调用同一官方 `experiment.run()`，显式保留 normalization 和本地 backbone 配置。4090 先验证数据读取、processor、单步前向/反向和保存；如反向 OOM，可在 H800 上完成该微型产物，但仍不得直接进入完整 SFT。
+使用 `nvidia/GR00T-N1.7-3B` 和官方训练 pipeline，仅运行足以产生 checkpoint 的 1–10 个 update。固定的 `gr00t/experiment/launch_finetune.py` 无法表达完整 stack-cube processor contract，项目 wrapper 因此直接调用同一官方 `experiment.run()`，显式保留 normalization 和本地 backbone 配置。4090 先验证数据读取、processor、单步前向/反向和保存；如反向 OOM，可在暂定的单张 RTX PRO 6000 96GB 上完成该微型产物，但仍不得直接进入完整 SFT。
 
 完成条件：生成符合 bundle contract 的产物，并在全新进程、离线模式下加载，完成 held-out 样本的 open-loop inference，同时保存逐动作维度的预测—专家对比图。
 
@@ -373,7 +392,7 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 缩小环境数量、batch、episode 长度、denoising steps 和训练步数，并按需启用 actor/rollout offload。
 
-4090 的强制完成条件是模型加载、环境 reset、rollout 和视频；一次完整 PPO update 是资源允许时的目标。如果 4090 OOM，必须保存显存测量和最小复现，并在已记录的最小多卡/H800 配置完成以下工程 gate：
+4090 的强制完成条件是模型加载、环境 reset、rollout 和视频；一次完整 PPO update 是资源允许时的目标。如果 4090 OOM，必须保存显存测量和最小复现，并在暂定的单张 RTX PRO 6000 96GB 上完成以下工程 gate：
 
 - 一次完整 PPO update；
 - actor/rollout 权重同步；
@@ -383,7 +402,7 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 ### 7. 完成正式 N1.7 SFT
 
-仅在微型 checkpoint 已成功交给 RLinf 后，在 H800 上运行完整 SFT。完整运行前固定 GPU 数、global batch、micro batch、gradient accumulation、max steps、评测间隔、存储预算和预计 wall time。
+仅在微型 checkpoint 已成功交给 RLinf，且目标机器通过完整动作头资源 gate 后，在暂定的单张 RTX PRO 6000 96GB 上运行正式 SFT。冻结视觉与语言骨干，训练 projector、DiT 与 vlln。完整运行前固定 global batch、micro batch、gradient accumulation、max steps、评测间隔、存储预算和预计 wall time。
 
 完成条件：
 
@@ -398,9 +417,9 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 进入 PPO 的最低 gate：无 contract/runtime 错误，action 未长期饱和，且 `success_once` 非零。若为零，先排查 SFT、相机域差异和动作转换，不直接增加 PPO 预算。
 
-### 9. 在 H800 上正式 PPO
+### 9. 在暂定的单张 RTX PRO 6000 96GB 上正式 PPO
 
-根据 smoke test 的实测显存设置 placement、global batch 和 micro batch。在单个 Ray node 上运行 PPO、周期性 IsaacLab evaluation 和 checkpoint 保存。GPU 数和 placement 必须在正式运行前冻结，不留到训练启动后临时决定。
+根据目标机器上完整动作头短作业的实测显存设置 global batch、micro batch、环境数量和 offload 策略。暂定 actor、rollout 与 IsaacLab 均放在单个 Ray node 的 GPU 0，冻结视觉与语言骨干，训练完整动作头及 value head；周期性执行 IsaacLab evaluation 和 checkpoint 保存。placement 与评测调度必须在正式运行前验证并冻结，不留到训练启动后临时决定。
 
 固定 task commit 中，Rewarded 环境的唯一正奖励是 `cubes_stacked`，因此 `env/success_once` 可作为主任务指标；同时记录 `success_at_end`、return、loss、KL、value、gradient norm、显存和吞吐。
 
@@ -419,7 +438,7 @@ SFT 使用 Isaac-GR00T 官方验证的 Python 与依赖组合，PPO 使用 RLinf
 
 两套环境分别生成 lock/manifest，至少记录 Python、Torch、CUDA runtime、FlashAttention、Transformers、AV/TorchCodec、Ray、Isaac Sim 和 IsaacLab commit。任何通过“后装包覆盖版本”形成的环境都必须通过 import、GPU kernel、视频解码和最小运行测试，不能只保存 `pip freeze`。
 
-正式 H800 作业前完成资源预算：
+暂定的单张 RTX PRO 6000 96GB 正式作业前，使用完整动作头训练范围完成资源预算：
 
 - actor、rollout、Isaac Sim 分别及并发时的峰值显存；
 - CPU RAM、共享内存、本地 NVMe 和 NAS 吞吐；
@@ -438,6 +457,6 @@ SFT 使用 Isaac-GR00T 官方验证的 Python 与依赖组合，PPO 使用 RLinf
 6. 目标 IsaacLab task 能完成 rollout、PPO update、权重同步、checkpoint 保存和恢复。
 7. 4090 完成强制开发 gate，其中包括单环境 WebRTC 实时 closed-loop 查看；若 actor update OOM，已有可复现记录和经过验证的替代 GPU 配置。
 8. SFT-only 闭环评测在固定 seeds 上得到非零成功率后才进入正式 PPO。
-9. H800 训练记录包含 SFT baseline、周期性 PPO 评测、成功率置信区间、checkpoint、TensorBoard 日志、资源指标和完整版本 manifest。
+9. 正式训练记录包含实际 GPU 型号与数量（暂定单张 RTX PRO 6000 96GB）、SFT baseline、周期性 PPO 评测、成功率置信区间、checkpoint、TensorBoard 日志、资源指标和完整版本 manifest。
 10. 数据示范、SFT 和 PPO 均有可回放产物；同一固定 seed 下可以直接比较 SFT 与 PPO 行为。
 11. 报告分别给出工程是否完成、PPO 是否达到相对 SFT 至少 5 个百分点的学习改进，不混淆链路可运行与策略有效。
