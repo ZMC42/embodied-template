@@ -1,0 +1,36 @@
+{
+  "model": {
+    "tune_llm": false,
+    "tune_visual": false,
+    "tune_projector": true,
+    "tune_diffusion_model": false,
+    "tune_vlln": false,
+    "load_bf16": true,
+    "use_percentiles": false,
+    "use_relative_action": false,
+    "state_dropout_prob": 0.0
+  },
+  "data": {
+    "seed": 42,
+    "download_cache": false,
+    "shard_size": 64,
+    "episode_sampling_rate": 0.1,
+    "num_shards_per_epoch": 1
+  },
+  "training": {
+    "max_steps": 1,
+    "global_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "learning_rate": 0.0001,
+    "warmup_ratio": 0.0,
+    "optim": "adamw_torch",
+    "logging_steps": 1,
+    "save_steps": 1,
+    "save_total_limit": 1,
+    "save_only_model": true,
+    "num_gpus": 1,
+    "dataloader_num_workers": 0,
+    "transformers_local_files_only": true,
+    "use_wandb": false
+  }
+}

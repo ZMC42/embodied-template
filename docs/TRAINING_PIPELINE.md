@@ -179,16 +179,17 @@ runs/stack-cube/visualization/dataset/
 
 ### 2. 查看 SFT 的 open-loop 动作预测
 
-Isaac-GR00T 的 `open_loop_eval.py` 会计算 MSE/MAE，并输出专家动作与模型预测动作的曲线图。例如在 SFT 虚拟环境中运行单条 held-out 轨迹：
+Isaac-GR00T 的 `open_loop_eval.py` 会计算 MSE/MAE，并输出专家动作与模型预测动作的曲线图。例如在 SFT 虚拟环境中运行派生 validation 数据的第一条 held-out 轨迹（loader index 0，即 episode 6）：
 
 ```bash
 python third_party/Isaac-GR00T/gr00t/eval/open_loop_eval.py \
-  --dataset-path datasets/isaaclab-stack-cube \
+  --dataset-path runs/stack-cube/data/validation \
   --embodiment-tag LIBERO_PANDA \
   --model-path models/stack-cube-n1.7-sft/checkpoint \
-  --traj-ids 132 \
+  --traj-ids 0 \
+  --steps 292 \
   --action-horizon 16 \
-  --save-plot-path runs/stack-cube/visualization/open-loop/traj-132.jpeg
+  --save-plot-path runs/stack-cube/visualization/open-loop/traj-6.jpeg
 ```
 
 这里显示的是“如果仍然处在专家轨迹的观测上，模型会预测什么”，不是机器人执行模型动作后的录像。必须分别观察 xyz、axis-angle 和 gripper，不能只看所有维度平均后的 MSE。
@@ -343,7 +344,9 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 ### 4. 生成微型 N1.7 SFT checkpoint
 
-使用 `nvidia/GR00T-N1.7-3B` 和官方 `gr00t/experiment/launch_finetune.py`，仅运行足以产生 checkpoint 的 1–10 个 update。4090 先验证数据读取、processor、单步前向/反向和保存；如反向 OOM，可在 H800 上完成该微型产物，但仍不得直接进入完整 SFT。
+**已完成（2026-10-02）**：单张 RTX 4090 完成官方 N1.7 的 1 次 projector-only SFT update，loss=1.5655、gradient norm=1.2691，采样峰值显存 16,295 MiB。已生成 `models/stack-cube-n1.7-sft/` 离线 bundle；全新进程在 `HF_HUB_OFFLINE=1` 和独立禁网 namespace 中完成加载、train-only statistics 检查、实际权重变化检查，以及 held-out episode 6 的全部 292 帧 open-loop 推理，保存 7 维预测—专家对比图和 NPZ。该微型产物仅验收工程链路，gripper 误差仍明显，不代表学会堆叠。入口、官方 CLI 限制、本地 Cosmos 路径、环境修复、资源和逐维指标见 [`STACK_CUBE_SFT_MICRO.md`](STACK_CUBE_SFT_MICRO.md)。第 5 步的 RLinf + IsaacLab 集成尚未开始。
+
+使用 `nvidia/GR00T-N1.7-3B` 和官方训练 pipeline，仅运行足以产生 checkpoint 的 1–10 个 update。固定的 `gr00t/experiment/launch_finetune.py` 无法表达完整 stack-cube processor contract，项目 wrapper 因此直接调用同一官方 `experiment.run()`，显式保留 normalization 和本地 backbone 配置。4090 先验证数据读取、processor、单步前向/反向和保存；如反向 OOM，可在 H800 上完成该微型产物，但仍不得直接进入完整 SFT。
 
 完成条件：生成符合 bundle contract 的产物，并在全新进程、离线模式下加载，完成 held-out 样本的 open-loop inference，同时保存逐动作维度的预测—专家对比图。
 
