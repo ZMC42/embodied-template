@@ -10,7 +10,7 @@
 - SFT 与 PPO 间的 embodiment、状态表示和 normalization contract 尚未通过运行时测试；
 - N1.7 + IsaacLab 仍是未被上游 e2e 覆盖的新组合；
 - 单张 RTX 4090 已完成 N1.5 + IsaacLab 和 N1.7 + LIBERO 的 actor update；N1.7 + IsaacLab 并发显存仍需实测；
-- 目标 N1.7 + IsaacLab 的项目级配置、contract test 和 e2e 尚未实现。
+- stack-cube 数据与 processor contract 已通过自动化验证；目标 N1.7 + IsaacLab 的 model/env adapter、项目级 PPO 配置和 e2e 仍需完成。
 
 在“微型 SFT checkpoint → RLinf 离线加载 → IsaacLab rollout → 一次 PPO update → 保存并恢复”完整通过前，不启动完整 SFT 或正式 PPO。
 
@@ -95,22 +95,24 @@ embodied-template/
 └── runs/
 ```
 
-`scripts/setup_assets.sh` 在项目根目录创建 `datasets`、`models`、`isaac-sim` 和 `runs` 软链接。Isaac Sim cache、shader cache、HF cache 和训练临时文件保留在本地 NVMe，避免共享 NAS 的小文件延迟影响运行。正式训练前对 AV1 视频随机读取做吞吐测试；若 NAS 吞吐不足，将固定 revision 的数据集 staging 到训练节点本地盘，并记录源 revision。
+`scripts/setup_assets.sh` 在项目根目录创建 `datasets`、`models`、`isaac-sim` 和 `runs` 软链接。Isaac Sim cache、shader cache、HF cache 和训练临时文件保留在本地 NVMe，避免共享 NAS 的小文件延迟影响运行。正式训练前对数据视频（固定 revision 实测为 MPEG-4 Part 2）随机读取做吞吐测试；若 NAS 吞吐不足，将固定 revision 的数据集 staging 到训练节点本地盘，并记录源 revision。
 
 ## 数据与模型 contract
 
 ### 数据 contract
 
-stack-cube 数据集公开且无需审批，包含 147 条 Franka 仿真示范、53,265 帧，总时长约 44 分钟，采用 LeRobot v2 格式。每一帧包含 256 × 256 的 front/wrist 双相机图像、8 维绝对 EEF state、7 维相对 EEF action，以及 stack-cube 的自然语言指令。
+stack-cube 数据集公开且无需审批，包含 147 条 Franka 仿真示范、53,265 帧，总时长约 44 分钟，采用 LeRobot v2 格式。每一帧包含 256 × 256 的 front/wrist 双相机图像、8 维绝对 EEF state（原始旋转为 Euler xyz，SFT 派生数据显式转为 principal axis-angle）、7 维相对 EEF action，以及 stack-cube 的自然语言指令。
 
 数据集 `meta/modality.json` 的字段与 N1.7 的 `libero_sim` modality 一致，包括 `image`、`wrist_image`、`x`、`y`、`z`、`roll`、`pitch`、`yaw` 和 `gripper`。字段相同不能直接证明行为兼容，必须验证：
 
-- runtime state 精确为 `[eef_xyz(3), eef_axis_angle(3), gripper_joint_pos(2)]`；虽然 modality key 名为 `roll/pitch/yaw`，不得把这 3 维误解释为 Euler angle；
+- SFT 派生数据与 runtime state 精确为 `[eef_xyz(3), principal_eef_axis_angle(3), left_finger_pos, -right_finger_pos]`；原始示范的 `roll/pitch/yaw` 经数值诊断为 Euler xyz，必须显式转换并记录，不能直接作为 axis-angle 使用；
 - action 精确为 IsaacLab relative IK 接受的 7 维命令，包含旋转与 gripper 的方向、范围和单位；
 - front/wrist 相机顺序、分辨率、颜色通道、相机位姿和图像 dtype 与数据采集时一致；
 - gripper state 的双指维度、action 的单维开合约定，以及 `[-1, 1]` 符号与 IsaacLab action manager 一致；
 - processor normalization 后再 decode 的 action 与原始 action 数值 round-trip 一致；
-- AV1 视频能在 SFT 环境中稳定随机解码，不依赖未记录的系统 FFmpeg 配置。
+- 实际 MPEG-4 Part 2 视频能在 SFT 环境中稳定随机解码，并记录 TorchCodec 使用的系统 FFmpeg shared libraries；原始 metadata 的 AV1 声明已确认不准确。
+
+已验证的数据处理、固定 split、train-only statistics 与复现入口见 [`STACK_CUBE_DATA_CONTRACT.md`](STACK_CUBE_DATA_CONTRACT.md)。公开数据没有采集时的相机标定；本项目固定 runtime 相机位姿并记录此验证边界，后续通过 closed-loop gate 检查域匹配。
 
 数据在训练前按 episode ID 固定划分，禁止按 frame 随机拆分：默认 117 条 train、15 条 validation、15 条 test。具体 episode ID、随机种子和划分算法保存到实验配置。test 集在最终模型选择前不参与调参；若沿用数据集全局 statistics，必须在报告中标注，优先生成仅基于 train split 的 statistics。
 
@@ -128,7 +130,7 @@ actor:
 - 官方 SFT CLI 使用 `--embodiment-tag LIBERO_PANDA` 或等价的 `libero_sim`；
 - SFT 产物的 `processor_config.json`、`statistics.json` 和 `embodiment_id.json` 必须包含 `libero_sim`；
 - RLinf actor 与 rollout 均使用 `libero_sim`，不得沿用 N1.5 IsaacLab 示例中的 `isaaclab_franka`；
-- `obs_converter_type` 独立使用 `isaaclab_stack_cube`，负责把 IsaacLab observation 转为 checkpoint 的 `libero_sim` schema；
+- `obs_converter_type` 独立使用 `isaaclab_stack_cube`，负责把 IsaacLab observation 转为 checkpoint 的 `libero_sim` schema，并将 wrapper 的 axis-angle 统一到与 SFT 派生数据一致的 principal branch；
 - 模型初始化后必须断言 observation keys、state dim = 8、decoded action dim = 7 和 action horizon 一致。
 
 如上述复用路径无法通过数值 contract，再切换到 custom modality；不得通过静默重命名、hard-coded statistics 或 monkey patch 绕过 processor metadata。
@@ -333,6 +335,8 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 ### 3. 验证 stack-cube 数据 contract
 
+**自动化数据与数值检查已完成（2026-10-02）**：官方 SFT 环境中 10 项真实资产测试通过，覆盖 147 episodes / 53,265 帧、样本随机 RGB 解码、state/action encode/decode、horizon padding、边界 frame 与 gripper 切换；真实 IsaacLab reset/action-manager 检查通过。已固定 117 / 15 / 15 的 episode split，生成 train-only statistics 和 episode 0 / 最长 episode 7 的双相机专家回放。实测修正了原始 Euler xyz 旋转、视频 codec 声明和数值 dtype 的差异；SFT 使用显式派生的 principal axis-angle 数据，train action round-trip 最大误差约 6×10⁻⁹。公开数据缺少采集标定及 IK scale provenance，无法证明这些采集参数完全一致；本轮固定 runtime 相机及动作配置并记录该边界，后续 closed-loop gate 仍须验证域匹配。复现命令、环境与 FFmpeg 记录、数值诊断及产物见 [`STACK_CUBE_DATA_CONTRACT.md`](STACK_CUBE_DATA_CONTRACT.md)。
+
 在不启动完整训练的情况下运行 schema、样本解码、processor encode/decode 和 observation/action 数值测试，并生成固定的 episode split。
 
 完成条件：上述数据与模型 contract 全部变成自动化测试；至少抽取 episode 开头、中间和结尾样本，验证 horizon padding、边界 frame 和 gripper 切换；生成一条 front/wrist 双相机专家示范回放。
@@ -351,7 +355,7 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 - 安装脚本复用固定的 `GR00T_PATH` 和 `ISAAC_LAB_PATH`，不得重复 clone；
 - 增加 N1.7 IsaacLab 实验配置；
 - 从 SFT bundle 加载 processor、statistics、embodiment mapping 和本地 Cosmos backbone；
-- 在模型边界验证 observation key、axis-angle 语义和 state dimension；
+- 在模型边界验证 observation key、principal axis-angle branch（与第 3 步派生数据一致）和 state dimension；
 - 在环境边界验证 relative EEF、action scale 和 gripper 转换；
 - 增加聚焦的 unit test 和 embodied e2e smoke 配置；
 - 补充经过验证的模型—环境—IsaacLab commit 组合文档。
@@ -421,7 +425,7 @@ SFT 使用 Isaac-GR00T 官方验证的 Python 与依赖组合，PPO 使用 RLinf
 
 1. 全新 checkout 可以初始化三个固定源码依赖，并校验其 commit。
 2. 数据、base model 和 Cosmos backbone 均按固定 HF revision 下载并通过校验；gated 许可证流程有文档。
-3. 公开 stack-cube 数据通过 schema、AV1 样本解码、episode split 和数值 modality contract 测试。
+3. 公开 stack-cube 数据通过 schema、实际 codec 样本解码、episode split 和数值 modality contract 测试。
 4. 官方 N1.7 SFT 能生成符合离线 bundle contract 的 stack-cube 产物。
 5. RLinf 使用 `libero_sim` processor 与 `isaaclab_stack_cube` converter 加载该 bundle。
 6. 目标 IsaacLab task 能完成 rollout、PPO update、权重同步、checkpoint 保存和恢复。

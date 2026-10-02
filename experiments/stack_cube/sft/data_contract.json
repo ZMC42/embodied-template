@@ -1,0 +1,73 @@
+{
+  "embodiment_tag": "libero_sim",
+  "official_cli_embodiment_tag": "LIBERO_PANDA",
+  "obs_converter_type": "isaaclab_stack_cube",
+  "raw_state_rotation": "extrinsic Euler xyz, radians (inferred from trajectory continuity and downward EEF orientation)",
+  "prepared_state": "[eef_xyz(3), principal_axis_angle(3), left_finger_joint_pos, -right_finger_joint_pos]",
+  "runtime_rotation_conversion": "canonical_axis_angle on existing RLinf wrapper output; must be integrated at step 5",
+  "action": "relative IK command: [delta_xyz / 0.5, delta_rotation_vector / 0.5, gripper_sign]",
+  "action_frame": "robot root frame; rotation delta left-multiplies current orientation",
+  "action_scale": 0.5,
+  "gripper": {
+    "open": 1,
+    "close": -1,
+    "zero": "open",
+    "open_joint_target_m": 0.04,
+    "closed_joint_target_m": 0.0
+  },
+  "cameras": {
+    "image": {
+      "source": "observation.images.front",
+      "runtime": "table_cam",
+      "position": [
+        1.0,
+        0.0,
+        0.4
+      ],
+      "quaternion_wxyz": [
+        0.35355,
+        -0.61237,
+        -0.61237,
+        0.35355
+      ]
+    },
+    "wrist_image": {
+      "source": "observation.images.wrist",
+      "runtime": "wrist_cam",
+      "position": [
+        0.13,
+        0.0,
+        -0.15
+      ],
+      "quaternion_wxyz": [
+        -0.70614,
+        0.03701,
+        0.03701,
+        -0.70614
+      ]
+    },
+    "resolution": [
+      256,
+      256
+    ],
+    "dtype": "uint8",
+    "channels": "RGB",
+    "fps": 20,
+    "calibration_provenance": "fixed IsaacLab task config; public dataset does not contain capture-time calibration"
+  },
+  "processor": {
+    "use_percentiles": false,
+    "use_relative_action": false,
+    "apply_sincos_state_encoding": false,
+    "state_dropout_prob": 0.0
+  },
+  "action_horizon": 16,
+  "tail_padding": "repeat final action for explicit boundary probes; official training drops final 15 start frames even with allow_padding=true",
+  "statistics": "computed from 117 train episodes after explicit state conversion; reused for validation/test",
+  "replay_episodes": [
+    0,
+    7
+  ],
+  "success_provenance": "public demonstrations; dataset has no per-episode success flag",
+  "video_codec": "mpeg4 (MPEG-4 Part 2); source meta/info.json incorrectly declares av1"
+}

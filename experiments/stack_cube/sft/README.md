@@ -1,7 +1,14 @@
 # SFT stage
 
-This directory will contain the validated wrapper around NVIDIA
-`gr00t/experiment/launch_finetune.py`. The first candidate reuses the
-`LIBERO_PANDA` modality because the public stack-cube dataset has the same field
-schema. Do not start a full run until the dataset, action representation, and
-processor round trip pass focused checks.
+The data contract is validated in `docs/STACK_CUBE_DATA_CONTRACT.md`.
+`episode_split.json` freezes 117 train / 15 validation / 15 test episodes;
+`data_contract.json` records the explicit state conversion, camera mapping,
+relative IK semantics, and processor settings.
+
+Run `bash scripts/validate_stack_cube_contract.sh` from the repository root
+in the official SFT environment. Use the prepared
+`runs/stack-cube/data/train` and `validation` datasets for the next micro SFT
+stage. The raw dataset stores Euler xyz rotation, while the prepared state
+uses principal axis-angle. Do not feed the raw parquets directly to SFT.
+
+The official SFT wrapper and micro checkpoint are step 4 and remain pending.

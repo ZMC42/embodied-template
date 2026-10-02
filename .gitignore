@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-/tests/
 tmp/
 
 # Machine-local links created by scripts/setup_assets.sh.
