@@ -1,0 +1,195 @@
+From 0e60183035192ccd79279018f5e3366ee6346695 Mon Sep 17 00:00:00 2001
+From: zmc123 <zjz122342@gmail.com>
+Date: Thu, 1 Oct 2026 17:27:56 +0800
+Subject: [PATCH] fix(fsdp): keep offloaded optimizer on CPU when saving
+ checkpoints
+
+Signed-off-by: zmc123 <zjz122342@gmail.com>
+---
+ docs/source-en/rst_source/guides/resume.rst   | 10 ++-
+ docs/source-zh/rst_source/guides/resume.rst   |  6 +-
+ .../hybrid_engines/fsdp/fsdp_model_manager.py |  7 +-
+ tests/unit_tests/test_fsdp.py                 | 85 +++++++++++++++++++
+ 4 files changed, 99 insertions(+), 9 deletions(-)
+
+diff --git a/docs/source-en/rst_source/guides/resume.rst b/docs/source-en/rst_source/guides/resume.rst
+index ae58dab3..523cdd39 100644
+--- a/docs/source-en/rst_source/guides/resume.rst
++++ b/docs/source-en/rst_source/guides/resume.rst
+@@ -69,8 +69,13 @@ FSDP/FSDP2 Checkpoint
+ ~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+ FSDP/FSDP2 uses either DCP (``torch.distributed.checkpoint``) or a per-rank
+-``local_shard`` checkpoint, depending on the actor worker. The default DCP
+-layout is:
++``local_shard`` checkpoint, depending on the actor worker.
++
++When optimizer offload is enabled, saving preserves optimizer state on CPU.
++Model weights are materialized for saving and returned to their previous
++offload state afterward; Adam moments do not need to be staged on the GPU.
++
++The default DCP layout is:
+ 
+ .. code-block:: text
+ 
+@@ -145,4 +150,3 @@ Resuming training
+ 
+    To verify resumption, look for the log line.  
+    If the next training step starts at 30, then the resume is working well!
+-
+diff --git a/docs/source-zh/rst_source/guides/resume.rst b/docs/source-zh/rst_source/guides/resume.rst
+index 19600a0c..411bd35f 100644
+--- a/docs/source-zh/rst_source/guides/resume.rst
++++ b/docs/source-zh/rst_source/guides/resume.rst
+@@ -60,7 +60,11 @@ Megatron检查点文件结构如下：
+ FSDP/FSDP2 检查点
+ ~~~~~~~~~~~~~~~~~~
+ 
+-FSDP/FSDP2 根据 actor worker 的实现，使用 DCP（``torch.distributed.checkpoint``）或按 rank 保存的 ``local_shard`` 检查点。默认 DCP 格式的目录结构如下：
++FSDP/FSDP2 根据 actor worker 的实现，使用 DCP（``torch.distributed.checkpoint``）或按 rank 保存的 ``local_shard`` 检查点。
++
++启用 optimizer offload 后，保存时保持 optimizer state 在 CPU 上。模型权重会为保存而加载，随后恢复原来的 offload 状态；Adam moments 无需搬回 GPU。
++
++默认 DCP 格式的目录结构如下：
+ 
+ .. code-block:: text
+ 
+diff --git a/rlinf/hybrid_engines/fsdp/fsdp_model_manager.py b/rlinf/hybrid_engines/fsdp/fsdp_model_manager.py
+index b71e32c6..a010ad66 100644
+--- a/rlinf/hybrid_engines/fsdp/fsdp_model_manager.py
++++ b/rlinf/hybrid_engines/fsdp/fsdp_model_manager.py
+@@ -393,13 +393,12 @@ class FSDPModelManager:
+             save_path: the directory to save checkpoint.
+         """
+         restore_weight_offload = self.is_weight_offloaded
+-        restore_optimizer_offload = self.is_optimizer_offloaded
+ 
+         if restore_weight_offload:
+             self.load_param_and_grad(self.device)
+-        if restore_optimizer_offload:
+-            self.load_optimizer(self.device)
+ 
++        # Checkpointing accepts CPU optimizer state; keep it offloaded so the
++        # model state dict can be materialized without staging Adam moments.
+         self._strategy.save_checkpoint(
+             self.model,
+             self.optimizer,
+@@ -412,8 +411,6 @@ class FSDPModelManager:
+ 
+         if restore_weight_offload:
+             self.offload_param_and_grad()
+-        if restore_optimizer_offload:
+-            self.offload_optimizer()
+ 
+     def offload_param_and_grad(self, offload_grad: bool = False) -> None:
+         """
+diff --git a/tests/unit_tests/test_fsdp.py b/tests/unit_tests/test_fsdp.py
+index 1bf3785d..62c0178e 100644
+--- a/tests/unit_tests/test_fsdp.py
++++ b/tests/unit_tests/test_fsdp.py
+@@ -40,13 +40,17 @@ The units. A model that reads embedding weights directly sets
+ import logging
+ import os
+ import socket
++from copy import deepcopy
+ from datetime import timedelta
++from pathlib import Path
+ 
+ import pytest
+ import torch
+ import torch.distributed as dist
++from omegaconf import OmegaConf
+ from torch.distributed.fsdp import FSDPModule, MixedPrecisionPolicy, OffloadPolicy
+ 
++from rlinf.hybrid_engines.fsdp.fsdp_model_manager import FSDPModelManager
+ from rlinf.hybrid_engines.fsdp.utils import apply_fsdp2_to_model, create_device_mesh
+ from rlinf.scheduler import Worker
+ from rlinf.scheduler.cluster import Cluster
+@@ -313,3 +317,84 @@ def test_a_model_can_keep_its_embeddings_in_the_enclosing_unit(single_rank_env):
+     policy = _shard(policy)
+ 
+     assert not isinstance(policy.block.head.table, FSDPModule)
++
++
++class _CheckpointModelManager(FSDPModelManager):
++    def model_provider_func(self) -> torch.nn.Module:
++        model = torch.nn.Sequential(torch.nn.Linear(1024, 1024, bias=False))
++        model._no_split_modules = ["Linear"]
++        return model
++
++
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA FSDP checkpoint test")
++@pytest.mark.parametrize("save_full_model_weights", [False, True])
++@pytest.mark.parametrize("strategy", ["fsdp", "fsdp2"])
++def test_checkpoint_preserves_cpu_optimizer_without_gpu_staging(
++    single_rank_env, monkeypatch, tmp_path, save_full_model_weights, strategy
++):
++    """Saving CPU optimizer state leaves GPU room for the model state dict."""
++    monkeypatch.setattr(Worker, "torch_device_type", "cuda")
++    fsdp_config = OmegaConf.load(
++        Path(__file__).resolve().parents[2]
++        / "examples/embodiment/config/hybrid_engines/fsdp.yaml"
++    )
++    fsdp_config.sharding_strategy = "no_shard"
++    fsdp_config.strategy = strategy
++    fsdp_config.use_orig_params = True
++    fsdp_config.save_full_model_weights = save_full_model_weights
++    fsdp_config.mixed_precision = {
++        "param_dtype": "fp32",
++        "reduce_dtype": "fp32",
++        "buffer_dtype": "fp32",
++    }
++    cfg = OmegaConf.create(
++        {
++            "model": {
++                "precision": "fp32",
++                "is_lora": False,
++                "model_type": "mlp_policy",
++            },
++            "fsdp_config": fsdp_config,
++            "optim": {"lr": 0.001, "adam_beta1": 0.9, "adam_beta2": 0.99},
++        }
++    )
++    manager = _CheckpointModelManager(cfg, world_size=1, rank=0)
++    manager.setup_model_and_optimizer()
++    manager.model(torch.ones(1, 1024, device="cuda")).sum().backward()
++    manager.optimizer.step()
++    manager.optimizer.zero_grad(set_to_none=True)
++    manager.lr_scheduler.step()
++    manager.offload_optimizer()
++    expected_optimizer = deepcopy(manager.optimizer.state_dict())
++    expected_scheduler = deepcopy(manager.lr_scheduler.state_dict())
++    expected_weights = manager.get_model_state_dict(
++        cpu_offload=True, full_state_dict=True
++    )
++    parameter_bytes = sum(
++        p.numel() * p.element_size() for p in manager.model.parameters()
++    )
++    manager.offload_param_and_grad()
++
++    baseline_memory = torch.cuda.memory_allocated()
++    torch.cuda.reset_peak_memory_stats()
++    manager.save_checkpoint(str(tmp_path))
++    # The live weights and state-dict clone fit; two Adam moments must stay on CPU.
++    assert torch.cuda.max_memory_allocated() - baseline_memory < 3 * parameter_bytes
++    assert all(p.device.type == "cpu" for p in manager.model.parameters())
++    assert all(
++        value.device.type == "cpu"
++        for state in manager.optimizer.state.values()
++        for value in state.values()
++        if isinstance(value, torch.Tensor)
++    )
++
++    restored = _CheckpointModelManager(cfg, world_size=1, rank=0)
++    restored.setup_model_and_optimizer()
++    restored.load_checkpoint(str(tmp_path))
++    restored.offload_optimizer()
++    actual_weights = restored.get_model_state_dict(
++        cpu_offload=True, full_state_dict=True
++    )
++    torch.testing.assert_close(actual_weights, expected_weights)
++    torch.testing.assert_close(restored.optimizer.state_dict(), expected_optimizer)
++    assert restored.lr_scheduler.state_dict() == expected_scheduler
+-- 
+2.34.1
+

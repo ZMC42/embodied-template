@@ -9,8 +9,8 @@
 - N1.7 + IsaacLab 的组合运行时仍需验证；N1.5 基线的源码、模型和环境已固定并通过实测；
 - SFT 与 PPO 间的 embodiment、状态表示和 normalization contract 尚未通过运行时测试；
 - N1.7 + IsaacLab 仍是未被上游 e2e 覆盖的新组合；
-- 单张 RTX 4090 已完成 N1.5 基线的 actor update；N1.7 的显存需求仍需实测；
-- 当前仓库仍是 scaffold，项目级配置、contract test 和目标 e2e 尚未实现。
+- 单张 RTX 4090 已完成 N1.5 + IsaacLab 和 N1.7 + LIBERO 的 actor update；N1.7 + IsaacLab 并发显存仍需实测；
+- 目标 N1.7 + IsaacLab 的项目级配置、contract test 和 e2e 尚未实现。
 
 在“微型 SFT checkpoint → RLinf 离线加载 → IsaacLab rollout → 一次 PPO update → 保存并恢复”完整通过前，不启动完整 SFT 或正式 PPO。
 
@@ -324,6 +324,8 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 完成条件：至少一次完整 update，无 shape、device、NaN 或 worker 生命周期错误，并能保存和恢复 checkpoint。
 
 ### 2. 验证 N1.7 基线链路
+
+**已完成（2026-10-02）**：单张 RTX 4090 已运行 GR00T N1.7 + LIBERO Spatial，完成本地模型与 processor 加载、rollout、PPO update、更新后的权重同步、视频录制和 step-1 checkpoint 保存；新进程恢复后再次 update、同步并保存 step 2。两次进程正常退出，所有记录指标有限，Adam 实际 step 从 1 延续到 2。采样峰值显存均为 23,476 MiB，wall time 分别为 390.2 / 531.8 s。基线使用独立 RLinf worktree `0e601830` 修复 checkpoint 保存时的 optimizer GPU staging，并采用 CPU bucket 同步；归档 patch、环境锁、复现命令和资源限制见 [`N1_7_BASELINE.md`](N1_7_BASELINE.md)。本次短 rollout 的 env reward/success 为零，且显存未满足正式作业 90% 的预算目标。
 
 以 smoke-test 规模运行 RLinf 维护的 GR00T N1.7 + LIBERO 配置。
 

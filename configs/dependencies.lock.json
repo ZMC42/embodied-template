@@ -53,7 +53,13 @@
   "environments": {
     "sft": {
       "python": "3.10.*",
-      "required_packages": ["torch", "flash-attn", "transformers", "av", "torchcodec"],
+      "required_packages": [
+        "torch",
+        "flash-attn",
+        "transformers",
+        "av",
+        "torchcodec"
+      ],
       "install": "uv sync --frozen --project third_party/Isaac-GR00T",
       "lock_inputs": {
         "third_party/Isaac-GR00T/uv.lock": "ad705311ed0a08a74d928cda7e7660315c818c8c3196d24f694f2af480318b48"
@@ -61,7 +67,16 @@
     },
     "ppo": {
       "python": "3.11.14",
-      "required_packages": ["torch", "flash-attn", "transformers", "av", "torchcodec", "ray", "isaacsim", "isaaclab"],
+      "required_packages": [
+        "torch",
+        "flash-attn",
+        "transformers",
+        "av",
+        "torchcodec",
+        "ray",
+        "isaacsim",
+        "isaaclab"
+      ],
       "install": "bash third_party/RLinf/requirements/install.sh embodied --env isaaclab",
       "lock_inputs": {
         "third_party/RLinf/pyproject.toml": "aa2be0d268cde31b604c546813383b0ed8a06c73b01c9177995200cb9e8f1f2e",
@@ -95,6 +110,41 @@
         "model-00002-of-00002.safetensors": "46ba4f97d52d8963b1618109ea8afad6ca5fe48f2a9179976952a1f3f0796b4d"
       },
       "requirements_lock_sha256": "1eec51d31af32e4b8928f7623c43deadf96cd3d15d217a88237e5ed93d7f7b74"
+    },
+    "n1_7_libero": {
+      "python": "3.11.14",
+      "model_repo_id": "nvidia/GR00T-N1.7-LIBERO",
+      "model_revision": "2ea293aa20ba7cf5bbf3ba17a5fbcb1a01cbfe21",
+      "model_path": "models/gr00t-n1.7-libero",
+      "model_subdirectory": "libero_spatial",
+      "license_file": "README.md",
+      "license_version": "model card at pinned revision",
+      "config": "experiments/libero/ppo/n1_7_smoke.yaml",
+      "requirements_lock": "configs/n1_7_libero_requirements.lock.txt",
+      "requirements_lock_sha256": "8fb9b621bfdad7a979ffd21269b8ef62bc9c2f5b8493de3d7670174859e07ec3",
+      "model_files_sha256": {
+        "README.md": "33956fc189a30cde8b8abe7a5ca0e5b21e22d2da7882af4840eef20e799b2b2a",
+        "libero_spatial/config.json": "ce763f74ad1cda2ca9e67491229cbc5810d83cae675cb4dad839a69a9731fd97",
+        "libero_spatial/embodiment_id.json": "abc4a749389837416a102d9455a8c089336f2e417afb18565703b9944974bc35",
+        "libero_spatial/experiment_cfg/conf.yaml": "97830f68aea169a062e2c5191272dca8958f447f9d683e9a0be820471d56b58c",
+        "libero_spatial/experiment_cfg/config.yaml": "24b279868f341ab9bebf238e88c5c46973672629a2e1f4e91e8ef4e814d627d7",
+        "libero_spatial/experiment_cfg/dataset_statistics.json": "89b62a35203247571645aacf2016ccce928d9b488042f0856af2ac17f4227b3e",
+        "libero_spatial/model-00001-of-00002.safetensors": "b7c7314a989ae3b577e3265e3f25c42a018ab4a476ab99e4d0fa61266d38a878",
+        "libero_spatial/model-00002-of-00002.safetensors": "ac70555aee124ef20d23473c85dbcfda42dc8d9f859384822e8aef19fd2d45dd",
+        "libero_spatial/model.safetensors.index.json": "407804ea5a62f4f8823f48811ae0edbb82fac101e9cf4d7273e6e2f692bb4d59",
+        "libero_spatial/processor_config.json": "545bb44c7d8caaf5ac82df55b90831271a1469a4e48adcc9a5f469f064f4e121",
+        "libero_spatial/statistics.json": "853bd068c7a5be4c7657fae634b654de38ea3e64c5e57409cbd3f4b57b6461c2"
+      },
+      "libero_assets": {
+        "repo_id": "RLinf/LIBERO-assets",
+        "revision": "3ba78404b48e8c70fa4ac9782d5aac8e5b46d55f",
+        "path": "simulators/libero-assets",
+        "license": "not declared in asset repository"
+      },
+      "rlinf_source_path": "tmp/RLinf-n1.7-baseline",
+      "rlinf_source_commit": "0e60183035192ccd79279018f5e3366ee6346695",
+      "rlinf_patch": "configs/patches/rlinf-n1_7-checkpoint.patch",
+      "rlinf_patch_sha256": "5c99a8b6329b1669d0c8a81eb9314d07292eb905b6fd59ed684ee67c79da0971"
     }
   }
 }
