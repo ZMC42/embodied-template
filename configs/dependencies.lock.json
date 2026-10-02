@@ -60,7 +60,7 @@
         "av",
         "torchcodec"
       ],
-      "install": "uv sync --frozen --project third_party/Isaac-GR00T",
+      "install": "UV_PROJECT_ENVIRONMENT=\"$PWD/.venvs/sft-n1.7\" uv sync --frozen --project third_party/Isaac-GR00T",
       "lock_inputs": {
         "third_party/Isaac-GR00T/uv.lock": "ad705311ed0a08a74d928cda7e7660315c818c8c3196d24f694f2af480318b48"
       }
@@ -77,7 +77,7 @@
         "isaacsim",
         "isaaclab"
       ],
-      "install": "bash third_party/RLinf/requirements/install.sh embodied --env isaaclab",
+      "install": "(cd third_party/RLinf && bash requirements/install.sh embodied --env isaaclab --venv \"../../.venvs/ppo-isaaclab\")",
       "lock_inputs": {
         "third_party/RLinf/pyproject.toml": "aa2be0d268cde31b604c546813383b0ed8a06c73b01c9177995200cb9e8f1f2e",
         "third_party/RLinf/requirements/install.sh": "e98805bd5e8454eb366d72175bc85ac8d4fa47eee83d1f9294e7b866e1059f31",

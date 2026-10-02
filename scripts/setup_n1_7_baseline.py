@@ -3,7 +3,6 @@
 
 import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -74,7 +73,7 @@ def main() -> None:
     )
     projects[0] = rlinf_path
 
-    venv = ROOT / ".venv-n1.7-libero"
+    venv = ROOT / ".venvs/n1.7-libero"
     subprocess.run(
         ["uv", "venv", "--allow-existing", str(venv), "--python", baseline["python"]],
         check=True,
@@ -86,6 +85,8 @@ def main() -> None:
         "--python",
         str(venv / "bin/python"),
         "--no-deps",
+        "--index-strategy",
+        "unsafe-best-match",
     ]
     subprocess.run(
         install
@@ -179,8 +180,6 @@ def main() -> None:
     package_assets = package / "assets"
     if package_assets.is_symlink():
         package_assets.unlink()
-    else:
-        shutil.rmtree(package_assets)
     package_assets.symlink_to(asset_path, target_is_directory=True)
     config = {
         "benchmark_root": str(package),

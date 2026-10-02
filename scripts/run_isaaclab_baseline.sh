@@ -23,7 +23,7 @@ nvidia-smi --query-gpu=timestamp,index,memory.used,utilization.gpu \
 GPU_MONITOR_PID=$!
 trap 'kill "$GPU_MONITOR_PID" 2>/dev/null || true' EXIT
 
-.venv-isaaclab-n1.5/bin/python -u \
+.venvs/isaaclab-n1.5/bin/python -u \
     third_party/RLinf/examples/embodiment/train_embodied_agent.py \
     --config-path "$EMBODIED_TEMPLATE_ROOT/experiments/stack_cube/ppo" \
     --config-name isaaclab_n1_5_smoke \
@@ -31,4 +31,4 @@ trap 'kill "$GPU_MONITOR_PID" 2>/dev/null || true' EXIT
 
 kill "$GPU_MONITOR_PID"
 trap - EXIT
-.venv-isaaclab-n1.5/bin/python scripts/verify_isaaclab_baseline.py "$RUN_DIR"
+.venvs/isaaclab-n1.5/bin/python scripts/verify_isaaclab_baseline.py "$RUN_DIR"

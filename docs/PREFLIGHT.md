@@ -21,6 +21,10 @@ Transformers、AV/TorchCodec、Ray、Isaac Sim、IsaacLab 和 driver 版本：
 bash scripts/setup_environments.sh
 ```
 
+两套环境分别创建在 `.venvs/sft-n1.7/` 和 `.venvs/ppo-isaaclab/`，
+不会在 submodule 中创建 `.venv`。已验证基线使用各自独立的
+`.venvs/isaaclab-n1.5/` 和 `.venvs/n1.7-libero/`，安装命令见对应基线报告。
+
 PPO 此阶段只安装固定 IsaacLab 的基础环境；N1.7 model adapter 在实施顺序第 5 步
 接入，避免安装器另外克隆 N1.5 源码。
 
@@ -30,7 +34,7 @@ PPO 此阶段只安装固定 IsaacLab 的基础环境；N1.7 model adapter 在�
 在 PPO 环境中验证目标 task 注册和一次 headless reset：
 
 ```bash
-source third_party/RLinf/.venv/bin/activate
+source .venvs/ppo-isaaclab/bin/activate
 source isaac-sim/setup_conda_env.sh
 python scripts/isaaclab_smoke.py
 ```

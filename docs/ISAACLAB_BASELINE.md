@@ -6,7 +6,7 @@
 
 项目配置是 [`isaaclab_n1_5_smoke.yaml`](../experiments/stack_cube/ppo/isaaclab_n1_5_smoke.yaml)，由固定 RLinf commit 中的 `isaaclab_franka_stack_cube_ppo_gr00t` 缩小得到。保留 256 × 256 双相机、7 维 action、16 步 action chunk、4 步 denoising 和官方 PPO loss；训练环境数量为 1，每轮执行 32 个 simulation step，global batch 为 2，micro batch 为 1，update epoch 为 1。actor 与 rollout 都启用 offload，actor 启用 gradient checkpointing。
 
-`configs/dependencies.lock.json` 的 `baselines.isaaclab_n1_5` 固定额外的 N1.5 源码、模型 revision、模型文件 SHA256 和环境锁。N1.5 源码放在 `tmp/Isaac-GR00T-n1.5` worktree，运行环境为 `.venv-isaaclab-n1.5`。
+`configs/dependencies.lock.json` 的 `baselines.isaaclab_n1_5` 固定额外的 N1.5 源码、模型 revision、模型文件 SHA256 和环境锁。N1.5 源码放在 `tmp/Isaac-GR00T-n1.5` worktree，运行环境为 `.venvs/isaaclab-n1.5`。
 
 | 项目 | 验证版本 |
 | --- | --- |

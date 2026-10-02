@@ -6,7 +6,7 @@
 
 配置见 `experiments/libero/ppo/n1_7_smoke.yaml`。它由固定 RLinf 的 `libero_spatial_ppo_gr00t_n1d7` 缩小得到：1 个环境、固定 task/reset ID 0、5 个环境 step、1 步 action chunk、1 步 denoising、global batch 5、micro batch 1、update epoch 1。保留 256 × 256 双相机和 7 维动作；actor/rollout 启用 offload，actor 启用 gradient checkpointing。训练后立即同步更新权重并录制 eval 视频。
 
-使用独立环境 `.venv-n1.7-libero`。`configs/dependencies.lock.json` 的 `baselines.n1_7_libero` 固定基线模型 revision、模型文件 SHA256、LIBERO 场景资产 revision 和运行环境锁。
+使用独立环境 `.venvs/n1.7-libero`。`configs/dependencies.lock.json` 的 `baselines.n1_7_libero` 固定基线模型 revision、模型文件 SHA256、LIBERO 场景资产 revision 和运行环境锁。
 
 | 项目 | 版本 |
 | --- | --- |
@@ -29,8 +29,8 @@ LIBERO 专用模型附带 `libero_sim` 的 processor、statistics 和 embodiment
 ```bash
 bash scripts/setup_assets.sh
 python scripts/setup_n1_7_baseline.py
-PATH="$PWD/.venv-n1.7-libero/bin:$PATH" \
-  .venv-n1.7-libero/bin/python scripts/download_assets.py cosmos_reason2_2b
+PATH="$PWD/.venvs/n1.7-libero/bin:$PATH" \
+  .venvs/n1.7-libero/bin/python scripts/download_assets.py cosmos_reason2_2b
 
 bash scripts/run_n1_7_baseline.sh train
 bash scripts/run_n1_7_baseline.sh resume \

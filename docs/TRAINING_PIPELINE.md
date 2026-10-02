@@ -400,6 +400,10 @@ ssh -L 6006:127.0.0.1:6006 <user>@<h800-host>
 
 ## 环境隔离与资源约束
 
+所有虚拟环境统一放在项目根目录的 `.venvs/` 下。已验证基线使用
+`isaaclab-n1.5/` 和 `n1.7-libero/`；后续官方 SFT 和 IsaacLab PPO 基础环境
+分别使用 `sft-n1.7/` 和 `ppo-isaaclab/`，按阶段需要创建。
+
 SFT 使用 Isaac-GR00T 官方验证的 Python 与依赖组合，PPO 使用 RLinf + 固定 IsaacLab 环境。在确认两边的 Python、Torch、FlashAttention 与 Isaac Sim 依赖完全一致之前，保持两个虚拟环境独立，使用数据集与 SFT bundle 作为阶段接口。
 
 两套环境分别生成 lock/manifest，至少记录 Python、Torch、CUDA runtime、FlashAttention、Transformers、AV/TorchCodec、Ray、Isaac Sim 和 IsaacLab commit。任何通过“后装包覆盖版本”形成的环境都必须通过 import、GPU kernel、视频解码和最小运行测试，不能只保存 `pip freeze`。

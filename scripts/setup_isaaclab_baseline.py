@@ -52,12 +52,20 @@ def main() -> None:
         == baseline["gr00t_source_commit"]
     )
 
-    venv = ROOT / ".venv-isaaclab-n1.5"
+    venv = ROOT / ".venvs/isaaclab-n1.5"
     subprocess.run(
         ["uv", "venv", "--allow-existing", str(venv), "--python", baseline["python"]],
         check=True,
     )
-    install = ["uv", "pip", "install", "--python", str(venv / "bin/python")]
+    install = [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        str(venv / "bin/python"),
+        "--index-strategy",
+        "unsafe-best-match",
+    ]
     subprocess.run(
         install
         + [

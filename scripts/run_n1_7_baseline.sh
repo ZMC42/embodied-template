@@ -14,7 +14,7 @@ RUN_DIR="${EMBODIED_TEMPLATE_ROOT}/runs/n1.7-libero-baseline/${RUN_NAME}"
 mkdir -p "$RUN_DIR"
 
 export EMBODIED_PATH="$RLINF_PATH/examples/embodiment"
-export LIBERO_CONFIG_PATH="$EMBODIED_TEMPLATE_ROOT/.venv-n1.7-libero/libero-config"
+export LIBERO_CONFIG_PATH="$EMBODIED_TEMPLATE_ROOT/.venvs/n1.7-libero/libero-config"
 export MUJOCO_GL=egl
 export PYOPENGL_PLATFORM=egl
 export NO_ALBUMENTATIONS_UPDATE=1
@@ -32,7 +32,7 @@ vmstat -w -S M 1 > "$RUN_DIR/memory.log" &
 MEMORY_MONITOR_PID=$!
 trap 'kill "$GPU_MONITOR_PID" "$MEMORY_MONITOR_PID" 2>/dev/null || true' EXIT
 
-.venv-n1.7-libero/bin/python -u \
+.venvs/n1.7-libero/bin/python -u \
     "$RLINF_PATH/examples/embodiment/train_embodied_agent.py" \
     --config-path "$EMBODIED_TEMPLATE_ROOT/experiments/libero/ppo" \
     --config-name n1_7_smoke \
@@ -40,5 +40,5 @@ trap 'kill "$GPU_MONITOR_PID" "$MEMORY_MONITOR_PID" 2>/dev/null || true' EXIT
 
 kill "$GPU_MONITOR_PID" "$MEMORY_MONITOR_PID"
 trap - EXIT
-.venv-n1.7-libero/bin/python scripts/verify_isaaclab_baseline.py \
+.venvs/n1.7-libero/bin/python scripts/verify_isaaclab_baseline.py \
     "$RUN_DIR" --baseline n1_7_libero
