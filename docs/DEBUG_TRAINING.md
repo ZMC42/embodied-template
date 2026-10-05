@@ -38,6 +38,10 @@ SFT 调试产物。PPO checkpoint、TensorBoard、轨迹和视频也写入本次
 
 ## PPO 主进程
 
+新手可结合 [RL pipeline 学习指南](RL_PIPELINE_GUIDE.md)，先在主进程观察调度顺序，
+再连接 actor worker，跟踪 rollout、GAE、PPO loss、梯度累积、参数更新与保存恢复。
+指南提供具体断点和 Debug Console 表达式，并解释仿真子进程的额外调试边界。
+
 选择 **PPO: N1.7 单步训练（主进程）**，按 F5。建议在
 `third_party/RLinf/rlinf/runners/embodied_runner.py` 的 `EmbodiedRunner.run()`
 内观察 `update_rollout_weights()`、`generate_rollouts`、

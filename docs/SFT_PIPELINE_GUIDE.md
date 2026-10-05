@@ -949,6 +949,7 @@ len(features)
 
 项目内继续阅读：
 
+- [RL_PIPELINE_GUIDE.md](RL_PIPELINE_GUIDE.md)：接着本指南，通过 IsaacLab rollout、GAE、PPO loss 和 Ray worker 断点学习一次 RL 更新。
 - [DEBUG_TRAINING.md](DEBUG_TRAINING.md)：SFT/PPO 的启动和调试操作，尤其是 PPO 多进程边界。
 - [STACK_CUBE_DATA_CONTRACT.md](STACK_CUBE_DATA_CONTRACT.md)：旋转、归一化、视频解码和数据划分的实测依据。
 - [STACK_CUBE_SFT_MICRO.md](STACK_CUBE_SFT_MICRO.md)：既有 GPU update、保存和禁网加载验收记录。

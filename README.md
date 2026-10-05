@@ -59,6 +59,8 @@ gaps, and the order in which the pipeline will be implemented.
 
 For a beginner-friendly Chinese walkthrough of SFT theory, code, tensors, and
 VS Code breakpoints, read the [SFT pipeline guide](docs/SFT_PIPELINE_GUIDE.md).
+Continue with the [RL pipeline guide](docs/RL_PIPELINE_GUIDE.md) to follow
+IsaacLab rollouts, GAE, PPO losses, parameter updates, and Ray worker debugging.
 
 All Python environments live under `.venvs/`:
 
