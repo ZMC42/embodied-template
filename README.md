@@ -57,6 +57,9 @@ Read [docs/TRAINING_PIPELINE.md](docs/TRAINING_PIPELINE.md) before installing
 GPU environments. It records the validated combinations, known compatibility
 gaps, and the order in which the pipeline will be implemented.
 
+For a beginner-friendly Chinese walkthrough of SFT theory, code, tensors, and
+VS Code breakpoints, read the [SFT pipeline guide](docs/SFT_PIPELINE_GUIDE.md).
+
 All Python environments live under `.venvs/`:
 
 | Directory | Purpose | Setup |

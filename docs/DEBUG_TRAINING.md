@@ -17,6 +17,9 @@ SFT 调试产物。PPO checkpoint、TensorBoard、轨迹和视频也写入本次
 
 ## SFT 单步训练
 
+新手可结合 [SFT pipeline 学习指南](SFT_PIPELINE_GUIDE.md)，按顺序观察示范取样、
+张量变换、flow matching loss、梯度和权重更新；指南提供具体断点和 Debug Console 表达式。
+
 选择 **SFT: N1.7 单步训练**，按 F5。程序先停在入口；设置断点后按 F5 继续。
 入口会校验 NAS 上的模型文件，首次到达训练断点前可能需要等待。
 
