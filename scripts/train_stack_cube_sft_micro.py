@@ -1,9 +1,11 @@
 """One official N1.7 SFT update, preserving the stack-cube processor contract."""
 
+import argparse
 import hashlib
 import shutil
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 
 import torch
@@ -32,10 +34,26 @@ def file_digest(path):
 
 
 def main():
-    report = ROOT / "runs/stack-cube/sft-micro"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Save this training run and bundle under OUTPUT_DIR/<timestamp>.",
+    )
+    args = parser.parse_args()
+    report = (
+        args.output_dir.resolve() / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        if args.output_dir is not None
+        else ROOT / "runs/stack-cube/sft-micro"
+    )
     report.mkdir(parents=True, exist_ok=True)
+    print(f"SFT output: {report}", flush=True)
     # Stage config/processor locally; immutable base weights stay on the NAS.
-    initial = ROOT / "tmp/stack-cube-sft-micro/initial"
+    initial = (
+        report / "staging/initial"
+        if args.output_dir is not None
+        else ROOT / "tmp/stack-cube-sft-micro/initial"
+    )
     if initial.parent.exists():
         shutil.rmtree(initial.parent)
     initial.mkdir(parents=True, exist_ok=True)
@@ -108,7 +126,11 @@ def main():
         },
     )
 
-    bundle = ROOT / "models/stack-cube-n1.7-sft"
+    bundle = (
+        report / "bundle"
+        if args.output_dir is not None
+        else ROOT / "models/stack-cube-n1.7-sft"
+    )
     bundle.mkdir(parents=True, exist_ok=True)
     checkpoint = report / "training/checkpoint-1"
     shutil.copytree(checkpoint, bundle / "checkpoint")

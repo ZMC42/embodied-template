@@ -1,0 +1,87 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SFT: N1.7 单步训练",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venvs/sft-n1.7/bin/python",
+      "program": "${workspaceFolder}/scripts/train_stack_cube_sft_micro.py",
+      "args": ["--output-dir", "${workspaceFolder}/tmp/debug/sft"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "stopOnEntry": true,
+      "subProcess": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/third_party/Isaac-GR00T",
+        "HF_HUB_OFFLINE": "1",
+        "HF_DATASETS_OFFLINE": "1",
+        "NO_ALBUMENTATIONS_UPDATE": "1",
+        "OMP_NUM_THREADS": "4",
+        "TOKENIZERS_PARALLELISM": "false",
+        "MPLBACKEND": "Agg",
+        "PYTHONUNBUFFERED": "1",
+        "CPATH": "${workspaceFolder}/tmp/sft-python-headers/usr/include/python3.10:${workspaceFolder}/tmp/sft-python-headers/usr/include"
+      }
+    },
+    {
+      "name": "PPO: N1.7 单步训练（主进程）",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/.venvs/ppo-isaaclab/bin/python",
+      "program": "${workspaceFolder}/scripts/debug_stack_cube_ppo.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "stopOnEntry": true,
+      "subProcess": false,
+      "env": {
+        "EMBODIED_TEMPLATE_ROOT": "${workspaceFolder}",
+        "RLINF_PATH": "${workspaceFolder}/third_party/RLinf",
+        "GR00T_PATH": "${workspaceFolder}/third_party/Isaac-GR00T",
+        "ISAAC_LAB_PATH": "${workspaceFolder}/third_party/IsaacLab",
+        "ISAAC_SIM_PATH": "${workspaceFolder}/isaac-sim",
+        "REPO_PATH": "${workspaceFolder}/third_party/RLinf",
+        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/third_party/RLinf",
+        "HF_HUB_OFFLINE": "1",
+        "HF_DATASETS_OFFLINE": "1",
+        "NO_ALBUMENTATIONS_UPDATE": "1",
+        "OMP_NUM_THREADS": "4",
+        "TOKENIZERS_PARALLELISM": "false",
+        "MALLOC_TRIM_THRESHOLD_": "0",
+        "OMNI_KIT_ACCEPT_EULA": "YES",
+        "HYDRA_FULL_ERROR": "1",
+        "PYTHONUNBUFFERED": "1",
+        "RAY_DEBUG": "1",
+        "RLINF_TIMEOUT": "120",
+        "DISPLAY": null,
+        "LIVESTREAM": null
+      }
+    },
+    {
+      "name": "PPO: Attach Ray worker",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "${input:rayDebugHost}",
+        "port": "${input:rayDebugPort}"
+      },
+      "justMyCode": false,
+      "subProcess": false
+    }
+  ],
+  "inputs": [
+    {
+      "id": "rayDebugHost",
+      "type": "promptString",
+      "description": "Ray debugger 日志中的监听 IP（VS Code 应通过 Remote SSH 连接服务器）",
+      "default": "127.0.0.1"
+    },
+    {
+      "id": "rayDebugPort",
+      "type": "promptString",
+      "description": "Ray debugger 日志中的动态监听端口"
+    }
+  ]
+}

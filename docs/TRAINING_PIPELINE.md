@@ -2,6 +2,8 @@
 
 本文确定 `embodied-template` 的实施范围、验证顺序和 go/no-go 条件：使用公开的 IsaacLab 仿真示范完成 NVIDIA GR00T N1.7 SFT，再将 SFT 产物交给 RLinf，使用 PPO 在同一个 stack-cube 任务上继续训练。
 
+通过 VS Code 断点学习真实的单步训练流程，见 [DEBUG_TRAINING.md](DEBUG_TRAINING.md)。
+
 ## 可行性结论与执行状态
 
 该路线技术上可行，但当前属于**有条件可行**，尚不是可直接启动单张 RTX PRO 6000 96GB 正式训练的已验证配置。数据 schema、官方 SFT 入口、RLinf 的 N1.7 模型支持和 checkpoint processor 保存机制均已存在；尚未闭合的风险集中在：
