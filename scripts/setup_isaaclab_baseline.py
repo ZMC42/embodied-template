@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install the pinned N1.5 baseline without changing the N1.7 checkout."""
 
+import argparse
 import json
 import subprocess
 from pathlib import Path
@@ -10,7 +11,7 @@ from download_assets import sha256
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main() -> None:
+def main(*, skip_assets: bool = False) -> None:
     lock = json.loads((ROOT / "configs/dependencies.lock.json").read_text())
     baseline = lock["baselines"]["isaaclab_n1_5"]
     assert (
@@ -90,6 +91,8 @@ def main() -> None:
         + [arg for path in projects for arg in ("-e", str(path))],
         check=True,
     )
+    if skip_assets:
+        return
     subprocess.run(
         [
             str(venv / "bin/hf"),
@@ -112,4 +115,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--skip-assets", action="store_true")
+    main(skip_assets=parser.parse_args().skip_assets)

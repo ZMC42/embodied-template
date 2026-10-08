@@ -129,11 +129,7 @@ def runtime(environment: str, output: Path) -> int:
         "packages": packages,
         "cuda_runtime": cuda,
         "driver": driver,
-        "isaac_sim": (
-            (ROOT / "isaac-sim" / "VERSION").read_text().strip()
-            if (ROOT / "isaac-sim" / "VERSION").is_file()
-            else None
-        ),
+        "isaac_sim": (packages["isaacsim"] if environment == "ppo" else None),
         "isaaclab_source": (ROOT / "third_party" / "IsaacLab" / "VERSION")
         .read_text()
         .strip(),

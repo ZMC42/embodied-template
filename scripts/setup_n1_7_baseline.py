@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install the pinned N1.7 + LIBERO baseline in its own environment."""
 
+import argparse
 import json
 import os
 import subprocess
@@ -11,7 +12,7 @@ from download_assets import sha256
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main() -> None:
+def main(*, skip_assets: bool = False) -> None:
     lock = json.loads((ROOT / "configs/dependencies.lock.json").read_text())
     baseline = lock["baselines"]["n1_7_libero"]
     assert (
@@ -110,36 +111,6 @@ def main() -> None:
         + [arg for path in projects for arg in ("-e", str(path))],
         check=True,
     )
-    subprocess.run(
-        [
-            str(venv / "bin/hf"),
-            "download",
-            baseline["model_repo_id"],
-            "--revision",
-            baseline["model_revision"],
-            "--local-dir",
-            str(ROOT / baseline["model_path"]),
-            "--include",
-            "README.md",
-            "libero_spatial/**",
-        ],
-        check=True,
-    )
-    for name, expected in baseline["model_files_sha256"].items():
-        assert sha256(ROOT / baseline["model_path"] / name) == expected, name
-    (ROOT / baseline["model_path"] / ".asset-manifest.json").write_text(
-        json.dumps(
-            {
-                "repo_id": baseline["model_repo_id"],
-                "revision": baseline["model_revision"],
-                "license_file": baseline["license_file"],
-                "files": baseline["model_files_sha256"],
-            },
-            indent=2,
-        )
-        + "\n"
-    )
-
     assets = baseline["libero_assets"]
     asset_root = Path(
         os.environ.get(
@@ -147,35 +118,66 @@ def main() -> None:
         )
     )
     asset_path = asset_root / assets["path"]
-    subprocess.run(
-        [
-            str(venv / "bin/hf"),
-            "download",
-            assets["repo_id"],
-            "--repo-type",
-            "dataset",
-            "--revision",
-            assets["revision"],
-            "--local-dir",
-            str(asset_path),
-        ],
-        check=True,
-    )
-    manifest = {
-        "repo_id": assets["repo_id"],
-        "revision": assets["revision"],
-        "license": assets["license"],
-        "files": {
-            str(path.relative_to(asset_path)): sha256(path)
-            for path in sorted(asset_path.rglob("*"))
-            if path.is_file()
-            and ".cache" not in path.relative_to(asset_path).parts
-            and path.name != ".asset-manifest.json"
-        },
-    }
-    (asset_path / ".asset-manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n"
-    )
+    if not skip_assets:
+        subprocess.run(
+            [
+                str(venv / "bin/hf"),
+                "download",
+                baseline["model_repo_id"],
+                "--revision",
+                baseline["model_revision"],
+                "--local-dir",
+                str(ROOT / baseline["model_path"]),
+                "--include",
+                "README.md",
+                "libero_spatial/**",
+            ],
+            check=True,
+        )
+        for name, expected in baseline["model_files_sha256"].items():
+            assert sha256(ROOT / baseline["model_path"] / name) == expected, name
+        (ROOT / baseline["model_path"] / ".asset-manifest.json").write_text(
+            json.dumps(
+                {
+                    "repo_id": baseline["model_repo_id"],
+                    "revision": baseline["model_revision"],
+                    "license_file": baseline["license_file"],
+                    "files": baseline["model_files_sha256"],
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+        subprocess.run(
+            [
+                str(venv / "bin/hf"),
+                "download",
+                assets["repo_id"],
+                "--repo-type",
+                "dataset",
+                "--revision",
+                assets["revision"],
+                "--local-dir",
+                str(asset_path),
+            ],
+            check=True,
+        )
+        manifest = {
+            "repo_id": assets["repo_id"],
+            "revision": assets["revision"],
+            "license": assets["license"],
+            "files": {
+                str(path.relative_to(asset_path)): sha256(path)
+                for path in sorted(asset_path.rglob("*"))
+                if path.is_file()
+                and ".cache" not in path.relative_to(asset_path).parts
+                and path.name != ".asset-manifest.json"
+            },
+        }
+        (asset_path / ".asset-manifest.json").write_text(
+            json.dumps(manifest, indent=2) + "\n"
+        )
     package = venv / "lib/python3.11/site-packages/libero/libero"
     package_assets = package / "assets"
     if package_assets.is_symlink():
@@ -195,4 +197,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--skip-assets", action="store_true")
+    main(skip_assets=parser.parse_args().skip_assets)

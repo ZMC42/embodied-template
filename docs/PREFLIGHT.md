@@ -3,6 +3,11 @@
 依赖的 commit、HF revision、环境 lock 输入和许可证版本统一记录在
 `configs/dependencies.lock.json`。
 
+新服务器可先执行 `bash scripts/setup_project.sh` 一次配置全部环境。指定
+`--envs dev,sft-n1.7,ppo-isaaclab` 可只安装 N1.7 训练主线；指定
+`--download-assets` 可同时下载固定资产。系统依赖、存储位置和安装日志见
+[`SETUP.md`](SETUP.md)。
+
 ```bash
 bash scripts/setup_assets.sh
 uv tool install huggingface_hub
@@ -25,8 +30,9 @@ bash scripts/setup_environments.sh
 不会在 submodule 中创建 `.venv`。已验证基线使用各自独立的
 `.venvs/isaaclab-n1.5/` 和 `.venvs/n1.7-libero/`，安装命令见对应基线报告。
 
-PPO 此阶段只安装固定 IsaacLab 的基础环境；N1.7 model adapter 在实施顺序第 5 步
-接入，避免安装器另外克隆 N1.5 源码。
+PPO 使用 `setup_stack_cube_integration.py` 安装已验证的固定 N1.7 + IsaacLab
+运行环境，包含 RLinf、GR00T 和 IsaacLab editable 源码。Isaac Sim 5.1 使用
+Python wheel 安装，版本检查以当前环境中的 `isaacsim` package 为准。
 
 环境 manifest 和可复用的 `*-requirements.lock.txt` 写入 `runs/preflight/`。
 锁文件排除已由源码 commit 固定的 editable project；在同版本 Python 环境中可用
@@ -35,7 +41,7 @@ PPO 此阶段只安装固定 IsaacLab 的基础环境；N1.7 model adapter 在�
 
 ```bash
 source .venvs/ppo-isaaclab/bin/activate
-source isaac-sim/setup_conda_env.sh
+export OMNI_KIT_ACCEPT_EULA=YES
 python scripts/isaaclab_smoke.py
 ```
 

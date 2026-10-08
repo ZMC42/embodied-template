@@ -41,6 +41,21 @@ links.
 
 ## Initialize the workspace
 
+On a new Linux x86_64 GPU server with an NVIDIA driver and CUDA Toolkit installed,
+configure all five environments with one command:
+
+```bash
+bash scripts/setup_project.sh
+```
+
+Use `--envs dev,sft-n1.7,ppo-isaaclab` for the N1.7 training pipeline only,
+`--asset-root /data/embodied-assets` to select storage, and `--download-assets`
+to download the pinned models and demonstrations. See
+[the server setup guide](docs/SETUP.md) for system dependencies, authentication,
+verification, and rerunning an interrupted installation.
+
+To initialize source and asset links without installing environments:
+
 ```bash
 bash scripts/setup_assets.sh
 source scripts/project_env.sh
@@ -66,11 +81,11 @@ All Python environments live under `.venvs/`:
 
 | Directory | Purpose | Setup |
 | --- | --- | --- |
-| `dev/` | Lightweight project environment | Commands below |
+| `dev/` | Lightweight project environment | `bash scripts/setup_project.sh --envs dev` |
 | `isaaclab-n1.5/` | Validated N1.5 + IsaacLab baseline | `python scripts/setup_isaaclab_baseline.py` |
 | `n1.7-libero/` | Validated N1.7 + LIBERO baseline | `python scripts/setup_n1_7_baseline.py` |
 | `sft-n1.7/` | Official N1.7 SFT dependencies | `bash scripts/setup_environments.sh` |
-| `ppo-isaaclab/` | IsaacLab PPO foundation for N1.7 integration | `bash scripts/setup_environments.sh` |
+| `ppo-isaaclab/` | Pinned N1.7 + IsaacLab PPO runtime | `bash scripts/setup_environments.sh` |
 
 Create the lightweight environment when needed:
 
